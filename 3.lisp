@@ -903,21 +903,21 @@
                   (show-prolog-vars ,(mapcar #'symbol-name vars)
                                     ,vars))))
   ;; Now run it
-  (run-prolog 'top-level-query/0 #'ignorer)
+  (run-prolog 'top-level-query/0 *trail* #'ignorer)
   (format t "~&No.")
   (values))
 
 
-(defun run-prolog (procedure cont)
+(defun run-prolog (procedure trail cont)
   "Run a 0-ary prolog procedure with a given continuation."
   ;; First compile anything else that needs it
   (prolog-compile-symbols)
   ;; Reset the trail and the new variable counter
-  (setf (trail-ndx *trail*) 0)
+  (setf (trail-ndx trail) 0)
   (setf *var-counter* 0)
   ;; Finally, call the query
   (catch 'top-level-prove
-    (funcall procedure cont)))
+    (funcall procedure trail cont)))
 
 
 (defun prolog-compile-symbols (&optional (symbols *uncompiled*))
@@ -963,10 +963,10 @@
         (parameters (make-parameters arity)))
     (compile
      (eval
-      `(defun ,*predicate* (,@parameters cont)
+      `(defun ,*predicate* (trail ,@parameters cont)
          .,(maybe-add-undo-bindings
             (mapcar (lambda (clause)
-                        (compile-clause '*trail* parameters clause 'cont))
+                      (compile-clause 'trail parameters clause 'cont))
                     clauses)))))))
 
 
@@ -1074,6 +1074,7 @@
                 macro-val
                 `(,(make-predicate* (predicate goal)
                                     (relation-arity goal))
+                  ,trail
                   ,@(mapcar (lambda (arg)
                               (compile-arg arg bindings))
                             (args goal))
@@ -1119,31 +1120,33 @@
        ',(cdr functor))))
 
 
-(defpred fail/0 (cont)
+(defpred fail/0 (trail cont)
   "7.8.1"
-  (declare (ignore cont))
+  (declare (ignore trail cont))
   nil)
 
 
-(defpred true/0 (cont)
+(defpred true/0 (trail cont)
   "7.8.2"
+  (declare (ignore trail))
   (funcall cont))
 
 
-(defpred call/1 (?g cont)
+(defpred call/1 (trail ?g cont)
   "7.8.3: Try to prove goal by calling it."
   (deref ?g)
   (cond
     ((or (goal-and-p ?g) (goal-or-p ?g) (goal-if-p ?g))
      ;; FIXME: this use of a temporary predicate name is ugly,
      ;; non-threadsafe and basically evil bad and wrong.
-     (funcall (compile-predicate 'call/1-tmp-fun 0 (list ?g)) cont))
+     (funcall (compile-predicate 'call/1-tmp-fun 0 (list ?g)) trail cont))
     (t (apply (make-predicate* (predicate ?g) (length (args ?g)))
               (append (args ?g) (list cont))))))
 
 
-(defpred !/0 (cont)
+(defpred !/0 (trail cont)
   "7.8.4"
+  (declare (ignore trail))
   (funcall cont))
 
 
@@ -1151,23 +1154,23 @@
   ((ball :initarg :ball :reader ball)))
 
 
-(defpred catch/3 (?goal ?catch ?recover cont)
+(defpred catch/3 (trail ?goal ?catch ?recover cont)
   "7.8.9"
-  (let ((trail-ndx (trail-ndx *trail*)))
+  (let ((trail-ndx (trail-ndx trail)))
     (handler-bind ((prolog-throw (lambda (c)
-				   (let ((old-trail (trail-ndx *trail*)))
-				     (when (unify! *trail* ?catch (ball c))
-				       (undo-bindings! *trail* trail-ndx)
+				   (let ((old-trail (trail-ndx trail)))
+				     (when (unify! trail ?catch (ball c))
+				       (undo-bindings! trail trail-ndx)
 				       (return-from catch/3
-					 (call/1 ?recover cont)))
-				     (undo-bindings! *trail* old-trail)
+					 (call/1 trail ?recover cont)))
+				     (undo-bindings! trail old-trail)
 				     (signal c)))))
-      (call/1 ?goal cont))))
+      (call/1 trail ?goal cont))))
 
 
-(defpred throw/1 (?ball cont)
+(defpred throw/1 (trail ?ball cont)
   "7.8.10"
-  (declare (ignore cont))
+  (declare (ignore trail cont))
   (signal (make-condition 'prolog-throw :ball (deref ?ball)))
   ;; FIXME: make this a throw eventually, and have a catch around
   ;; top-level-query.
@@ -1176,22 +1179,22 @@
 
 ;;; 8.2 term unification
 
-(defpred =/2 (?arg1 ?arg2 cont)
+(defpred =/2 (trail ?arg1 ?arg2 cont)
   "8.2.1"
-  (when (unify! *trail* ?arg1 ?arg2)
+  (when (unify! trail ?arg1 ?arg2)
     (funcall cont)))
 
 
-(defpred unify-with-occurs-check/2 (?arg1 ?arg2 cont)
+(defpred unify-with-occurs-check/2 (trail ?arg1 ?arg2 cont)
   "8.2.2"
   (let ((*occurs-check* t))
-    (when (unify! *trail* ?arg1 ?arg2)
+    (when (unify! trail ?arg1 ?arg2)
       (funcall cont))))
 
 
-(defpred \\=/2 (?arg1 ?arg2 cont)
+(defpred \\=/2 (trail ?arg1 ?arg2 cont)
   "8.2.3"
-  (unless (unify! *trail* ?arg1 ?arg2)
+  (unless (unify! trail ?arg1 ?arg2)
     (funcall cont)))
 
 
@@ -1215,8 +1218,9 @@
 
 
 (macrolet ((define-type-testing-predicate (name docstring fun)
-             `(defpred ,name (x cont)
+             `(defpred ,name (trail x cont)
                 ,docstring
+                (declare (ignore trail))
                 (when (,fun (deref x))
                   (funcall cont)))))
   (define-type-testing-predicate var/1 "8.3.1" unbound-var-p)
@@ -1242,15 +1246,17 @@
            (deref-equal (cdr x) (cdr y)))))
 
 
-(defpred ==/2 (?x ?y cont)
+(defpred ==/2 (trail ?x ?y cont)
   "8.4.1: Are the two arguments EQUAL with no unification,
   but with dereferencing?  If so, succeed."
+  (declare (ignore trail))
   (when (deref-equal ?x ?y)
     (funcall cont)))
 
 
-(defpred \\==/2 (?x ?y cont)
+(defpred \\==/2 (trail ?x ?y cont)
   "8.4.2"
+  (declare (ignore trail))
   (unless (deref-equal ?x ?y)
     (funcall cont)))
 
@@ -1288,25 +1294,29 @@
 					 (return t))))))))))))
 
 
-(defpred @</2 (?x ?y cont)
+(defpred @</2 (trail ?x ?y cont)
   "8.4.3"
+  (declare (ignore trail))
   (when (term-precedes ?x ?y)
     (funcall cont)))
 
 
-(defpred @=</2 (?x ?y cont)
+(defpred @=</2 (trail ?x ?y cont)
   "8.4.4"
+  (declare (ignore trail))
   (when (or (deref-equal ?x ?y)
 	    (term-precedes ?x ?y))
     (funcall cont)))
 
 
-(defpred @>/2 (?x ?y cont)
+(defpred @>/2 (trail ?x ?y cont)
+  (declare (ignore trail))
   (when (term-precedes ?y ?x)
     (funcall cont)))
 
 
-(defpred @>=/2 (?x ?y cont)
+(defpred @>=/2 (trail ?x ?y cont)
+  (declare (ignore trail))         
   (when (or (deref-equal ?y ?x)
 	    (term-precedes ?y ?x))
     (funcall cont)))
@@ -1314,34 +1324,33 @@
 
 ;;; 8.5 term creation and decomposition
 
-(defpred functor/3 (?term ?name ?arity cont)
+(defpred functor/3 (trail ?term ?name ?arity cont)
   "8.5.1"
-  (cond
-    ((unbound-var-p ?term)
-     (assert (not (unbound-var-p ?name)))
-     (assert (not (unbound-var-p ?arity)))
-     (when (unify! *trail* ?term (list* (deref ?name)
-                                (loop repeat (deref ?arity) collect (?))))
-       (funcall cont)))
-    (t (if (atomicp (deref ?term))
-           (when (and (unify! *trail* ?arity 0)
-                      (unify! *trail* ?name ?term))
-             (funcall cont))
-           (when (and (unify! *trail* ?arity (length (cdr ?term)))
-                      (unify! *trail* ?name (or (and(car ?term)))))
-             (funcall cont))))))
+  (cond ((unbound-var-p ?term)
+         (assert (not (unbound-var-p ?name)))
+         (assert (not (unbound-var-p ?arity)))
+         (when (unify! trail ?term (list* (deref ?name)
+                                          (loop repeat (deref ?arity) collect (?))))
+           (funcall cont)))
+        (t (if (atomicp (deref ?term))
+               (when (and (unify! trail ?arity 0)
+                          (unify! trail ?name ?term))
+                 (funcall cont))
+               (when (and (unify! trail ?arity (length (cdr ?term)))
+                          (unify! trail ?name (or (and(car ?term)))))
+                 (funcall cont))))))
 
 
-(defpred arg/3 (?n ?term ?arg cont)
+(defpred arg/3 (trail ?n ?term ?arg cont)
   "8.5.2"
-  (when (unify! *trail* (nth (deref ?n) (deref ?term)) ?arg)
+  (when (unify! trail (nth (deref ?n) (deref ?term)) ?arg)
     (funcall cont)))
 
 
-(defun =.. (?term ?list cont)
+(defun =.. (trail ?term ?list cont)
   "8.5.3"
   ;; FIXME: have to decide how to represent Prolog lists
-  (declare (ignore ?term ?list cont))
+  (declare (ignore trail ?term ?list cont))
   )
 
 
@@ -1354,34 +1363,35 @@
              (make-renamed-copy (cdr term))))))
 
 
-(defpred copy-term/2 (?term1 ?term2 cont)
+(defpred copy-term/2 (trail ?term1 ?term2 cont)
   "8.5.4"
-  (when (unify! *trail* (make-renamed-copy (deref ?term1)) (deref ?term2))
+  (when (unify! trail (make-renamed-copy (deref ?term1)) (deref ?term2))
     (funcall cont)))
 
 
 ;;; 8.6 arithmetic evaluation
 
-(defpred is/2 (var exp cont)
+(defpred is/2 (trail var exp cont)
   "8.6.1"
   ;; Example: (is ?x (+ 3 (* ?y (+ ?z 4))))
   ;; Or even: (is (?x ?y ?x) (cons (first ?z) ?l))
   (when ;; (and (not (find-if-anywhere #'unbound-var-p exp))
       ;;      (unify! var (eval (deref-exp exp))))
       (or (and (not (find-if-anywhere #'unbound-var-p exp))
-               (unify! *trail* var (eval (deref-exp exp))))
+               (unify! trail var (eval (deref-exp exp))))
           (let ((var exp)
                 (exp var))
             (and (not (find-if-anywhere #'unbound-var-p exp))
-                 (unify! *trail* var (eval (deref-exp exp))))))
+                 (unify! trail var (eval (deref-exp exp))))))
     (funcall cont)))
 
 
 ;;; 8.7 arithmetic comparison
 
 (macrolet ((define-arithmetic-comparison-predicate (name op)
-	     `(defpred ,name (?e1 ?e2 cont)
+	     `(defpred ,name (trail ?e1 ?e2 cont)
 		"8.7.3"
+                (declare (ignore trail))
 		(when (and (not (find-if-anywhere #'unbound-var-p ?e1))
 			   (not (find-if-anywhere #'unbound-var-p ?e1)))
 		  ;; FIXME: CL specifies comparison on (float,integer)
@@ -1400,66 +1410,66 @@
 
 ;;; FIXME: 8.8 clause retrieval and information
 
-(defpred clause/2 (?head ?body cont)
+(defpred clause/2 (trail ?head ?body cont)
   "8.8.1"
   (let ((clauses (get-clauses (predicate (deref ?head)))))
-    (let ((old-trail (trail-ndx *trail*)))
+    (let ((old-trail (trail-ndx trail)))
       (dolist (clause clauses)
-	(when (unify! *trail* `(,?head . ,?body) clause)
+	(when (unify! trail `(,?head . ,?body) clause)
 	  (funcall cont))
-        (undo-bindings! *trail* old-trail)))))
+        (undo-bindings! trail old-trail)))))
 
 
-(defpred current-predicate/1 (?pi cont)
+(defpred current-predicate/1 (trail ?pi cont)
   "8.8.2"
   ;; FIXME: need to refactor *DB-PREDICATES* so that it contains arity
   ;; information
-  (declare (ignore ?pi cont))
+  (declare (ignore trail ?pi cont))
   )
 
 
 ;;; 8.9 clause creation and destruction
 
-(defpred asserta/1 (?clause cont)
+(defpred asserta/1 (trail ?clause cont)
   "8.9.1"
-  (let* ((old-trail (trail-ndx *trail*))
+  (let* ((old-trail (trail-ndx trail))
 	 (?head (?))
 	 (?body (?)))
-    (unless (unify! *trail* (deref ?clause) `(<- ,?head . ,?body))
-      (undo-bindings! *trail* old-trail)
-      (unify! *trail* `(,?head . ,?body) `(,?clause (true))))
+    (unless (unify! trail (deref ?clause) `(<- ,?head . ,?body))
+      (undo-bindings! trail old-trail)
+      (unify! trail `(,?head . ,?body) `(,?clause (true))))
     (add-clause (cons (deref ?head) (deref ?body)) :asserta t)
     (funcall cont)))
 
 
-(defpred assertz/1 (?clause cont)
+(defpred assertz/1 (trail ?clause cont)
   "8.9.2"
-  (let* ((old-trail (trail-ndx *trail*))
+  (let* ((old-trail (trail-ndx trail))
 	 (?head (?))
 	 (?body (?)))
-    (unless (unify! *trail* (deref ?clause) `(<- ,?head . ,?body))
-      (undo-bindings! *trail* old-trail)
-      (unify! *trail* `(,?head . ,?body) `(,?clause (true))))
+    (unless (unify! trail (deref ?clause) `(<- ,?head . ,?body))
+      (undo-bindings! trail old-trail)
+      (unify! trail `(,?head . ,?body) `(,?clause (true))))
     (add-clause (cons (deref ?head) (deref ?body)))
     (funcall cont)))
 
 
-(defpred retract/1 (?clause cont)
+(defpred retract/1 (trail ?clause cont)
   "8.9.3"
-  (let* ((old-trail (trail-ndx *trail*))
+  (let* ((old-trail (trail-ndx trail))
 	 (?head (?))
 	 (?body (?)))
-    (unless (unify! *trail* (deref ?clause) `(<- ,?head . ,?body))
-      (undo-bindings! *trail* old-trail)
-      (unify! *trail* `(,?head . ,?body) `(,?clause (true))))
+    (unless (unify! trail (deref ?clause) `(<- ,?head . ,?body))
+      (undo-bindings! trail old-trail)
+      (unify! trail `(,?head . ,?body) `(,?clause (true))))
     (retract-clause (cons (deref ?head) (deref ?body)))
     (funcall cont)))
 
 
-(defpred abolish/1 (?pi cont)
+(defpred abolish/1 (trail ?pi cont)
   "8.9.4"
   ;; FIXME: implement this
-  (declare (ignore cont ?pi))
+  (declare (ignore trail cont ?pi))
   )
 
 
@@ -1467,33 +1477,35 @@
 
 ;;; FIXME: I think this is right for FINDALL/3.  BAGOF/3 and SETOF/3
 ;;; have extra complicated stuff to do with witnesses.
-(defpred findall/3 (term goal bag cont)
+(defpred findall/3 (trail term goal bag cont)
   "8.10.1: Find all solutions to GOAL, and for each solution,
   collect the value of TERM into the list BAG."
   ;; Ex: Assume (p 1) (p 2) (p 3).  Then:
   ;;     (bagof ?x (p ?x) ?l) ==> ?l = (1 2 3)
   (let ((answers nil))
-    (call/1 goal (lambda ()
+    (call/1 trail
+            goal (lambda ()
 		   ;; Bug fix by mdf0%shemesh@gte.com (Mark Feblowitz)
 		   ;; on 25 Jan 1996; was deref-COPY
                    (push (deref-exp term) answers))) 
     (if (and (not (null answers))
-             (unify! *trail* bag (nreverse answers)))
+             (unify! trail bag (nreverse answers)))
         (funcall cont))))
 
 
-(defpred bagof/3 (exp goal result cont)
+(defpred bagof/3 (trail exp goal result cont)
   "8.10.2: Find all solutions to GOAL, and for each solution,
   collect the value of EXP into the list RESULT."
   ;; Ex: Assume (p 1) (p 2) (p 3).  Then:
   ;;     (bagof ?x (p ?x) ?l) ==> ?l = (1 2 3)
   (let ((answers nil))
-    (call/1 goal (lambda ()
+    (call/1 trail
+            goal (lambda ()
 		   ;; Bug fix by mdf0%shemesh@gte.com (Mark Feblowitz)
 		   ;; on 25 Jan 1996; was deref-COPY
                    (push (deref-EXP exp) answers))) 
     (if (and (not (null answers))
-             (unify! *trail* result (nreverse answers)))
+             (unify! trail result (nreverse answers)))
         (funcall cont))))
 
 
@@ -1506,18 +1518,19 @@
           exp))
 
 
-(defpred setof/3 (exp goal result cont)
+(defpred setof/3 (trail exp goal result cont)
   "8.10.3: Find all unique solutions to GOAL, and for each solution,
   collect the value of EXP into the list RESULT."
   ;; Ex: Assume (p 1) (p 2) (p 3).  Then:
   ;;     (setof ?x (p ?x) ?l) ==> ?l = (1 2 3)
   (let ((answers nil))
-    (call/1 goal (lambda ()
-                     (push (deref-exp exp) answers)))
+    (call/1 trail
+            goal
+            (lambda ()
+              (push (deref-exp exp) answers)))
     (if (and (not (null answers))
-             (unify! *trail* result (delete-duplicates
-                                     answers
-                                     :test #'deref-equal)))
+             (unify! trail result (delete-duplicates answers
+                                                     :test #'deref-equal)))
         (funcall cont))))
 
 
@@ -1538,33 +1551,35 @@
 ;;; FIXME: we probably want *prolog-standard-input* and
 ;;; *prolog-standard-output*, else things are likely to get confused.
 
-(defpred current-input/1 (?stream cont)
+(defpred current-input/1 (trail ?stream cont)
   "8.11.2"
-  (when (unify! *trail* (deref ?stream) *standard-input*)
+  (when (unify! trail (deref ?stream) *standard-input*)
     (funcall cont)))
 
 
-(defpred current-output/1 (?stream cont)
+(defpred current-output/1 (trail ?stream cont)
   "8.11.3"
-  (when (unify! *trail* (deref ?stream) *standard-output*)
+  (when (unify! trail (deref ?stream) *standard-output*)
     (funcall cont)))
 
 
-(defpred set-input/1 (?stream-or-alias cont)
+(defpred set-input/1 (trail ?stream-or-alias cont)
   "8.11.4"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (setf *standard-input* s)
     (funcall cont)))
 
 
-(defpred set-output/1 (?stream-or-alias cont)
+(defpred set-output/1 (trail ?stream-or-alias cont)
   "8.11.5"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (setf *standard-output* s)
     (funcall cont)))
 
 
-(defpred open/4 (?source/sink ?mode ?stream ?options cont)
+(defpred open/4 (trail ?source/sink ?mode ?stream ?options cont)
   "8.11.6"
   (let ((element-type 'character)
 	(name (deref ?source/sink))
@@ -1582,23 +1597,23 @@
 				   (binary '(unsigned-byte 8)))))
 	(alias (push (cadr option) aliases))))
     (let ((stream (apply #'open name :element-type element-type args)))
-      (when (unify! *trail* ?stream stream)
+      (when (unify! trail ?stream stream)
 	(dolist (alias aliases)
 	  (setf (get alias 'stream-alias) stream)
 	  (push alias (get 'stream-aliases stream)))
 	(funcall cont)))))
 
 
-(defpred close/1 (?stream-or-alias cont)
+(defpred close/1 (trail ?stream-or-alias cont)
   "8.11.7"
   ;; FIXME: this will fail if we change the representation of the
   ;; empty list.
-  (close/2 ?stream-or-alias nil cont))
+  (close/2 trail ?stream-or-alias nil cont))
 
 
-(defpred close/2 (?stream-or-alias ?options cont)
+(defpred close/2 (trail ?stream-or-alias ?options cont)
   "8.11.8"
-  (declare (ignore ?options))
+  (declare (ignore trail ?options))
   (with-stream (s (deref ?stream-or-alias))
     ;; FIXME: actually there's all the business about going back to
     ;; user_input, and also handling 7.10.2.12 force(Bool).
@@ -1606,15 +1621,17 @@
   (funcall cont))
 
 
-(defpred flush-output/0 (cont)
+(defpred flush-output/0 (trail cont)
   "8.11.9"
+  (declare (ignore trail))
   ;; FIXME: check to see if FORCE-OUTPUT is more appropriate
   (finish-output *standard-output*)
   (funcall cont))
 
 
-(defpred flush-output/1 (?stream-or-alias cont)
+(defpred flush-output/1 (trail ?stream-or-alias cont)
   "8.11.10"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (finish-output s))
   (funcall cont))
@@ -1623,23 +1640,24 @@
 ;;; FIXME: 8.11.11 stream-property/2.  Need a registry of all open
 ;;; streams.
 
-(defpred at-end-of-stream/0 (cont)
+(defpred at-end-of-stream/0 (trail cont)
   "8.11.12"
   ;; FIXME: we can fake this for character streams by doing peek-char
   ;; and handling the END-OF-FILE condition, but what about binary streams?
-  (declare (ignore cont))
+  (declare (ignore trail cont))
   )
 
 
-(defpred at-end-of-stream/1 (?stream-or-alias cont)
+(defpred at-end-of-stream/1 (trail ?stream-or-alias cont)
   "8.11.13"
   ;;; FIXME (see at-end-of-stream/0)
-  (declare (ignore cont ?stream-or-alias))
+  (declare (ignore trail cont ?stream-or-alias))
   )
 
 
-(defpred set-stream-position/2 (?stream-or-alias ?position cont)
+(defpred set-stream-position/2 (trail ?stream-or-alias ?position cont)
   "8.11.14"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (file-position s (deref ?position))
     (funcall cont)))
@@ -1652,41 +1670,45 @@
 ;;; ("integers").  For now, character input/output works on characters
 ;;; and character-code input/output works on integers.
 
-(defpred get-char/1 (?char cont)
+(defpred get-char/1 (trail ?char cont)
   "8.12.1"
-  (when (unify! *trail* (deref ?char) (intern (string (read-char *standard-input*))))
+  (when (unify! trail (deref ?char) (intern (string (read-char *standard-input*))))
     (funcall cont)))
 
 
-(defpred get-char/2 (?stream-or-alias ?char cont)
+(defpred get-char/2 (trail ?stream-or-alias ?char cont)
   "8.12.2"
   (with-stream (s (deref ?stream-or-alias))
     (declare (ignore s))
-    (when (unify! *trail* (deref ?char) (intern (string (read-char ?stream-or-alias))))
+    (when (unify! trail (deref ?char) (intern (string (read-char ?stream-or-alias))))
       (funcall cont))))
 
 
-(defpred put-char/1 (?char cont)
+(defpred put-char/1 (trail ?char cont)
   "8.12.3"
+  (declare (ignore trail))
   (write-char (character (deref ?char)) *standard-output*)
   (funcall cont))
 
 
-(defpred put-char/2 (?stream-or-alias ?char cont)
+(defpred put-char/2 (trail ?stream-or-alias ?char cont)
   "8.12.4"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (write-char (character (deref ?char)) s)
     (funcall cont)))
 
 
-(defpred nl/0 (cont)
+(defpred nl/0 (trail cont)
   "8.12.5"
+  (declare (ignore trail))
   (terpri *standard-output*)
   (funcall cont))
 
 
-(defpred nl/1 (?stream-or-alias cont)
+(defpred nl/1 (trail ?stream-or-alias cont)
   "8.12.6"
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (terpri s)
     (funcall cont)))
@@ -1696,23 +1718,25 @@
 
 ;;; FIXME: see comment about element type for section 8.12
 
-(defpred get-code/1 (?code cont)
-  (when (unify! *trail* (deref ?code) (read-byte *standard-output*))
+(defpred get-code/1 (trail ?code cont)
+  (when (unify! trail (deref ?code) (read-byte *standard-output*))
     (funcall cont)))
 
 
-(defpred get-code/2 (?stream-or-alias ?code cont)
+(defpred get-code/2 (trail ?stream-or-alias ?code cont)
   (with-stream (s (deref ?stream-or-alias))
-    (when (unify! *trail* (deref ?code) (read-byte s))
+    (when (unify! trail (deref ?code) (read-byte s))
       (funcall cont))))
 
 
-(defpred put-code/1 (?code cont)
+(defpred put-code/1 (trail ?code cont)
+  (declare (ignore trail))
   (write-byte (deref ?code) *standard-output*)
   (funcall cont))
 
 
-(defpred put-code/2 (?stream-or-alias ?code cont)
+(defpred put-code/2 (trail ?stream-or-alias ?code cont)
+  (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
     (write-byte (deref ?code) s)
     (funcall cont)))
@@ -1722,12 +1746,13 @@
 
 ;;; these would probably be OK for lispy prolog; they're probably not
 ;;; for ISO prolog.
-(defpred read/1 (exp cont)
-  (if (unify! *trail* exp (read))
-      (funcall cont)))
+(defpred read/1 (trail exp cont)
+  (and (unify! trail exp (read))
+       (funcall cont)))
 
 
-(defpred write/1 (exp cont)
+(defpred write/1 (trail exp cont)
+  (declare (ignore trail))         
   (write (deref-exp exp) :pretty t)
   (funcall cont))
 
@@ -1738,73 +1763,76 @@
   "Undo bindings after each expression in body except the last."
   (if (length=1 body)
       (first body)
-      `(let ((old-trail (trail-ndx *trail*)))
+      `(let ((old-trail (trail-ndx ,trail)))
          ,(first body)
          ,@(loop for exp in (rest body)
                  collect `(undo-bindings! ,trail old-trail)
                  collect exp))))
 
 
-(defpred fail-if/1 (relation cont)
+(defpred fail-if/1 (trail relation cont)
   "8.15.1: Negation by failure: If you can't prove G, then (not G) true."
   ;; Either way, undo the bindings.
-  (with-undo-bindings (*trail*)
-    (call/1 relation (lambda () (return-from fail-if/1 nil)))
+  (with-undo-bindings (trail)
+    (call/1 trail relation (lambda () (return-from fail-if/1 nil)))
     (funcall cont)))
 
 
-(defpred once/1 (thing cont)
+(defpred once/1 (trail thing cont)
   "8.15.2"
-  (with-undo-bindings (*trail*)
-    (call/1 thing cont)
+  (with-undo-bindings (trail)
+    (call/1 trail thing cont)
     nil))
 
 
-(defpred repeat/0 (cont)
+(defpred repeat/0 (trail cont)
   "8.15.3"
+  (declare (ignore trail))
   (loop (funcall cont)))
 
 
 ;;; 8.16 constant processing
 
-(defpred atom-length/2 (?atom ?length cont)
+(defpred atom-length/2 (trail ?atom ?length cont)
   "8.16.1"
-  (when (unify! *trail* (length (string (deref ?atom))) ?length)
+  (when (unify! trail (length (string (deref ?atom))) ?length)
     (funcall cont)))
 
 
-(defpred atom-concat/3 (?atom1 ?atom2 ?atom12 cont)
+(defpred atom-concat/3 (trail ?atom1 ?atom2 ?atom12 cont)
   "8.16.2"
   (if (unbound-var-p (deref ?atom12))
-      (when (unify! *trail* ?atom12 (intern (concatenate 'string
-                                                 (string (deref ?atom1))
-                                                 (string (deref ?atom2)))))
+      (when (unify! trail
+                    ?atom12
+                    (intern (concatenate 'string
+                                         (string (deref ?atom1))
+                                         (string (deref ?atom2)))))
         (funcall cont))
       (let* ((string (string ?atom12))
              (length (length string)))
-        (let ((old-trail (trail-ndx *trail*)))
+        (let ((old-trail (trail-ndx trail)))
           (deref ?atom1)
           (deref ?atom2)
           (dotimes (i length)
-            (when (unify! *trail* `(,?atom1 . ,?atom2)
+            (when (unify! trail `(,?atom1 . ,?atom2)
                           (cons (intern (subseq string 0 i))
                                 (intern (subseq string i))))
               (funcall cont))
-            (undo-bindings! *trail* old-trail))))))
+            (undo-bindings! trail old-trail))))))
 
 
-(defpred sub-atom/4 (?atom ?start ?length ?sub-atom cont)
+(defpred sub-atom/4 (trail ?atom ?start ?length ?sub-atom cont)
   "8.16.3"
   (let* ((string (string (deref ?atom)))
          (length (length string)))
-    (let ((old-trail (trail-ndx *trail*)))
+    (let ((old-trail (trail-ndx trail)))
       (dotimes (s (1+ length))
         (dotimes (l (1+ (- length s)))
-          (when (and (unify! *trail* ?start (1+ s))
-                     (unify! *trail* ?length l)
-                     (unify! *trail* ?sub-atom (intern (subseq string s (+ s l)))))
+          (when (and (unify! trail ?start (1+ s))
+                     (unify! trail ?length l)
+                     (unify! trail ?sub-atom (intern (subseq string s (+ s l)))))
             (funcall cont))
-          (undo-bindings! *trail* old-trail))))))
+          (undo-bindings! trail old-trail))))))
 
 
 (defun implode (list)
@@ -1818,80 +1846,80 @@
   (loop for x across (string symbol) collect (intern (string x))))
 
 
-(defpred atom-chars/2 (?atom ?list cont)
+(defpred atom-chars/2 (trail ?atom ?list cont)
   "8.16.4"
   (if (unbound-var-p (deref ?atom))
-      (when (unify! *trail* ?atom (implode (deref-exp ?list)))
+      (when (unify! trail ?atom (implode (deref-exp ?list)))
         (funcall cont))
-      (when (unify! *trail* (explode ?atom) (deref ?list))
+      (when (unify! trail (explode ?atom) (deref ?list))
         (funcall cont))))
 
 
-(defpred atom-codes/2 (?atom ?codes cont)
+(defpred atom-codes/2 (trail ?atom ?codes cont)
   "8.16.5"
   (when (if (unbound-var-p (deref ?atom))
-            (unify! *trail* ?atom
+            (unify! trail ?atom
                     (intern (coerce (loop for i in (deref-exp ?codes)
                                           collect (code-char i))
                                     'string)))
-            (unify! *trail* (loop for i across (string ?atom)
-                          collect (char-code i))
+            (unify! trail (loop for i across (string ?atom)
+                                collect (char-code i))
                     (deref ?codes)))
     (funcall cont)))
 
 
-(defpred atom-characters/2 (?atom ?characters cont)
+(defpred atom-characters/2 (trail ?atom ?characters cont)
   "for Common Lisp"
   (when (if (unbound-var-p (deref ?atom))
-            (unify! *trail* ?atom
+            (unify! trail ?atom
                     (intern (coerce (deref-exp ?characters) 'string)))
-            (unify! *trail* (loop for i across (string ?atom)
-                                  collect i)
+            (unify! trail (loop for i across (string ?atom)
+                                collect i)
                     (deref ?characters)))
     (funcall cont)))
 
 
-(defpred string-atom/2 (?string ?atom cont)
+(defpred string-atom/2 (trail ?string ?atom cont)
   "for Common Lisp"
   (when (if (unbound-var-p (deref ?string))
-            (unify! *trail* ?string (string (deref ?atom)))
-            (unify! *trail* (intern ?string) (deref ?atom)))
+            (unify! trail ?string (string (deref ?atom)))
+            (unify! trail (intern ?string) (deref ?atom)))
     (funcall cont)))
 
 
-(defpred string-list/2 (?string ?list cont)
+(defpred string-list/2 (trail ?string ?list cont)
   (when (if (unbound-var-p (deref ?string))
-            (unify! *trail* ?string (coerce (deref-exp ?list) 'string))
-            (unify! *trail* (coerce ?string 'list) (deref ?list)))
+            (unify! trail ?string (coerce (deref-exp ?list) 'string))
+            (unify! trail (coerce ?string 'list) (deref ?list)))
     (funcall cont)))
 
 
-(defpred char-code/2 (?char ?code cont)
+(defpred char-code/2 (trail ?char ?code cont)
   "8.16.6"
   (if (unbound-var-p (deref ?char))
-      (when (unify! *trail* ?char (intern (string (code-char (deref ?code)))))
+      (when (unify! trail ?char (intern (string (code-char (deref ?code)))))
         (funcall cont))
-      (when (unify! *trail* (char-code (character ?char)) (deref ?code))
+      (when (unify! trail (char-code (character ?char)) (deref ?code))
         (funcall cont))))
 
 
-(defpred number-chars/2 (?number ?list cont)
+(defpred number-chars/2 (trail ?number ?list cont)
   "8.16.7"
   (if (unbound-var-p (deref ?number))
-      (when (unify! *trail* ?number
+      (when (unify! trail ?number
                     (read-from-string (map 'string 'character (deref-exp ?list))))
         (funcall cont))
-      (when (unify! *trail* (explode (intern (princ-to-string ?number))) (deref ?list))
+      (when (unify! trail (explode (intern (princ-to-string ?number))) (deref ?list))
         (funcall cont))))
 
 
-(defpred number-codes/2 (?number ?list cont)
+(defpred number-codes/2 (trail ?number ?list cont)
   "8.16.8"
   (if (unbound-var-p (deref ?number))
-      (when (unify! *trail* ?number
+      (when (unify! trail ?number
                     (read-from-string (map 'string 'code-char (deref-exp ?list))))
         (funcall cont))
-      (when (unify! *trail* (map 'list 'char-code (princ-to-string ?number))
+      (when (unify! trail (map 'list 'char-code (princ-to-string ?number))
                     (deref ?list))
         (funcall cont))))
 
