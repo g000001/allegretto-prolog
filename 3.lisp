@@ -2199,8 +2199,8 @@ which is accessed from lisp functor.
   ;;(<-- (member ?item (?item . ?rest)))
   ;;(<-  (member ?item (?x . ?rest)) (member ?item ?rest))
 
-  (declaim (inline member/2))
-  (defun member/2 (trail ?arg1 ?arg2 cont)
+  ;;#++
+  (tail-recursive-defun member/2 (trail ?arg1 ?arg2 cont)
     (let ((old-trail (trail-ndx trail)))
       (let ((?rest (?)))
         (if (unify! trail ?arg2 (cons ?arg1 ?rest))
