@@ -15,10 +15,6 @@
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
 
 
-'(declaim (ftype function
-                allegretto-prolog-3::nextto/3
-                allegretto-prolog-3::iright/3))
-
 (<-- (nextto ?x ?y ?list) (iright ?x ?y ?list))
 
 
@@ -104,6 +100,7 @@
                        "~:D-LIPS"
                        (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
                zebra-owner water-drinker houses)))))
+
 
 ;; (zebra-benchmark 1000)
 

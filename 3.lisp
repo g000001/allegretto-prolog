@@ -104,6 +104,30 @@
 (in-package "ALLEGRETTO-PROLOG-3")
 
 
+(defmacro nlet (name bindspec &body body)
+  (let ((gs (loop :for nil :in bindspec :collect (gensym)))
+        (gname (gensym "name"))
+        (gblock (gensym "block")))
+    `(macrolet ((,name ,gs
+                  `(progn
+                     (psetq
+                      ,@(apply #'nconc
+                               (mapcar #'list ',(mapcar #'car bindspec)
+                                       (list ,@gs))))
+                     (go ,',gname))))
+       (block ,gblock
+         (let ,bindspec
+           (tagbody
+            ,gname (return-from
+                       ,gblock (progn ,@body))))))))
+
+
+(defmacro tail-recursive-defun (name (&rest args) &body body)
+  `(defun ,name (,@args)
+     (nlet ,name (,@(mapcar (lambda (v) `(,v ,v)) args))
+       ,@body)))
+
+
 (defmacro fast (&body body)
   `(locally
        #+(or sbcl allegro) (declare (optimize (speed 3) (safety 0)))
@@ -222,8 +246,7 @@
 
 (defun allocate-trail (size)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (the (cons adim simple-vector)
-       (cons 0 (allocate-trail-vec size))))
+  (the cons (cons 0 (allocate-trail-vec size))))
 
 
 (defmacro trail-ndx (trail)
@@ -682,15 +705,15 @@
       (and (consp x) (proper-listp (rest x)))))
 
 
-(defun maybe-add-undo-bindings (compiled-exps)
+(defun maybe-add-undo-bindings (trail compiled-exps)
   "Undo any bindings that need undoing.
   If there are any, bind the trail before we start."
   (if (length=1 compiled-exps)
       compiled-exps
-      `((let ((old-trail (trail-ndx *trail*)))
+      `((let ((old-trail (trail-ndx ,trail)))
           ,(first compiled-exps)
           ,@(loop for exp in (rest compiled-exps)
-                  collect '(undo-bindings! *trail* old-trail)
+                  collect `(undo-bindings! ,trail old-trail)
                   collect exp)))))
 
 
@@ -956,18 +979,24 @@
   "The Prolog predicate currently being compiled")
 
 
+(defvar *defun* 'defun)
+
+
+;(defvar *defun* 'tail-recursive-defun)
+
+
 (defun compile-predicate (symbol arity clauses)
   "Compile all the clauses for a given symbol/arity
   into a single LISP function."
   (let ((*predicate* (make-predicate* symbol arity))    ;***
         (parameters (make-parameters arity)))
-    (compile
-     (eval
-      `(defun ,*predicate* (trail ,@parameters cont)
-         .,(maybe-add-undo-bindings
-            (mapcar (lambda (clause)
-                      (compile-clause 'trail parameters clause 'cont))
-                    clauses)))))))
+    (setf (get *predicate* 'defun)
+          `(,*defun* ,*predicate* (trail ,@parameters cont)
+             .,(maybe-add-undo-bindings 'trail
+                                        (mapcar (lambda (clause)
+                                                  (compile-clause 'trail parameters clause 'cont))
+                                                clauses))))
+    (compile (eval (get *predicate* 'defun)))))
 
 
 (defun goal-cut-p (goal)
@@ -1041,7 +1070,7 @@
           (compile-body trail (append (cdr goal) (rest body)) cont bindings))
          ((goal-disjunction-p goal)
           (let ((bindings (bind-new-variables bindings goal)))
-            `(let ((old-trail (trail-ndx ,trail))
+            `(let ((old-trail (trail-ndx trail))
                    (cont (lambda () ,(compile-body trail (rest body) cont bindings))))
                ,(compile-body trail (list (cadr goal)) 'cont bindings)
                (undo-bindings! ,trail old-trail)
@@ -1113,11 +1142,13 @@
                                                      (symbol-package name))
                                         (cdr name/arity))))
     `(eval-when (:compile-toplevel :load-toplevel :execute)
-       (setf (fdefinition ',(cdr functor))
+     #|(setf (fdefinition ',(cdr functor))
              (fdefinition
               (defun ,name (,@args)
-                ,@body)))
-       ',(cdr functor))))
+                ,@body)))|#
+     (defun ,name (,@args)
+       ,@body)
+     ',(cdr functor))))
 
 
 (defpred fail/0 (trail cont)
@@ -1141,6 +1172,7 @@
      ;; non-threadsafe and basically evil bad and wrong.
      (funcall (compile-predicate 'call/1-tmp-fun 0 (list ?g)) trail cont))
     (t (apply (make-predicate* (predicate ?g) (length (args ?g)))
+              trail
               (append (args ?g) (list cont))))))
 
 
@@ -1979,7 +2011,7 @@
   (defun make-predicate-ftype (clause-head)
     (let ((name (predicate clause-head))
           (arity (relation-arity clause-head)))
-      `(ftype (function (,@(loop :repeat arity :collect T) function) T)
+      `(ftype (function (list ,@(loop :repeat arity :collect T) function) T)
               ,(make-predicate* name arity)))))
 
 
@@ -2163,18 +2195,27 @@ which is accessed from lisp functor.
                                     `(values ,@vars))))))
 
 
-(<-- (member ?item (?item . ?rest)))
+(progn
+  ;;(<-- (member ?item (?item . ?rest)))
+  ;;(<-  (member ?item (?x . ?rest)) (member ?item ?rest))
+
+  (declaim (inline member/2))
+  (defun member/2 (trail ?arg1 ?arg2 cont)
+    (let ((old-trail (trail-ndx trail)))
+      (let ((?rest (?)))
+        (if (unify! trail ?arg2 (cons ?arg1 ?rest))
+            (funcall cont)))
+      (undo-bindings! trail old-trail)
+      (let ((?rest (?)))
+        (if (unify! trail ?arg2 (cons (?) ?rest))
+            (member/2 trail ?arg1 ?rest cont))))))
 
 
-(<-  (member ?item (?x . ?rest)) (member ?item ?rest))
+(progn
+  (<-- (length () 0))
+  (<-  (length (?x . ?y) ?n)
+       (length ?y ?n1)
+       (is ?n (1+ ?n1))))
 
-
-(<-- (length () 0))
-
-
-(<-  (length (?x . ?y) (1+ ?n)) (length ?y ?n))
-
-
-;(prolog (member ?x (0 1 2 3)) (lisp (print ?x)))
 
 ;;; *EOF*
