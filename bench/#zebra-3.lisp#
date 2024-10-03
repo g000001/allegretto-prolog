@@ -105,6 +105,7 @@
                        (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
                zebra-owner water-drinker houses)))))
 
+
 ;; (zebra-benchmark 1000)
 
 ;;; *EOF*

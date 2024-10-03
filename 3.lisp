@@ -2109,6 +2109,7 @@ and add a clause to the data base."
                     (declare (dynamic-extent de-cont))
                     (de-consify (make-predicate* ',(predicate goal)
 				                 ',(relation-arity goal))
+                                ,trail
 		                ,@(mapcar (lambda (arg)
 			                    (compile-arg arg bindings))
 			                  (args goal))
@@ -2173,5 +2174,7 @@ which is accessed from lisp functor.
 
 (<-  (length (?x . ?y) (1+ ?n)) (length ?y ?n))
 
+
+;(prolog (member ?x (0 1 2 3)) (lisp (print ?x)))
 
 ;;; *EOF*
