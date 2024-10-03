@@ -742,22 +742,22 @@
     (t (values (cons tree seen-once) seen-more)))))
 
 
-(defun compile-unify (x y bindings)
+(defun compile-unify (trail x y bindings)
   "Return 2 values: code to test if x and y unify,
   and a new binding list."
   (cond
-    ;; Unify constants and conses:                       ; Case
-    ((not (or (has-variable-p x) (has-variable-p y)))    ; 1,2
-     (values (equal x y) bindings))
-    ((and (consp x) (consp y))                           ; 3
-     (multiple-value-bind (code1 bindings1)
-         (compile-unify (first x) (first y) bindings)
-       (multiple-value-bind (code2 bindings2)
-           (compile-unify (rest x) (rest y) bindings1)
-         (values (compile-if code1 code2) bindings2))))
-    ;; Here x or y is a variable.  Pick the right one:
-    ((variable-p x) (compile-unify-variable x y bindings))
-    (t              (compile-unify-variable y x bindings))))
+   ;; Unify constants and conses:                       ; Case
+   ((not (or (has-variable-p x) (has-variable-p y)))    ; 1,2
+    (values (equal x y) bindings))
+   ((and (consp x) (consp y))                           ; 3
+    (multiple-value-bind (code1 bindings1)
+                         (compile-unify trail (first x) (first y) bindings)
+      (multiple-value-bind (code2 bindings2)
+                           (compile-unify trail (rest x) (rest y) bindings1)
+        (values (compile-if code1 code2) bindings2))))
+   ;; Here x or y is a variable.  Pick the right one:
+   ((variable-p x) (compile-unify-variable trail x y bindings))
+   (t              (compile-unify-variable trail y x bindings))))
 
 
 (defun compile-if (pred then-part)
@@ -768,7 +768,7 @@
     (otherwise `(if ,pred ,then-part))))
 
 
-(defun compile-unify-variable (x y bindings)
+(defun compile-unify-variable (trail x y bindings)
   "X is a variable, and Y may be."
   (let* ((xb (follow-binding x bindings))
          (x1 (if xb (cdr xb) x))
@@ -777,24 +777,23 @@
     (cond                                                 ; Case:
       ((or (eq x '?) (eq y '?)) (values t bindings))      ; 12
       ((not (and (equal x x1) (equal y y1)))              ; deref
-       (compile-unify x1 y1 bindings))
+       (compile-unify trail x1 y1 bindings))
       ((find-anywhere x1 y1) (values nil bindings))       ; 11
       ((consp y1)                                         ; 7,10
-       (values `(unify! *trail* ,x1 ,(compile-arg y1 bindings))
+       (values `(unify! ,trail ,x1 ,(compile-arg y1 bindings))
                (bind-variables-in y1 bindings)))
       ((not (null xb))
        ;; i.e. x is an ?arg variable
        (if (and (variable-p y1) (null yb))
            (values 't (extend-bindings y1 x1 bindings))   ; 4
-           (values `(unify! *trail* ,x1 ,(compile-arg y1 bindings))
+           (values `(unify! ,trail ,x1 ,(compile-arg y1 bindings))
                    (extend-bindings x1 y1 bindings))))    ; 5,6
       ((not (null yb))
-       (compile-unify-variable y1 x1 bindings))
+       (compile-unify-variable trail y1 x1 bindings))
       (t (values 't (extend-bindings x1 y1 bindings))))))
 
 
 ; 8,9
-
 (defun bind-variables-in (exp bindings)
   "Bind all variables in exp to themselves, and add that to
   bindings (except for variables already bound)."
@@ -840,26 +839,25 @@
 (defun self-cons (x) (cons x x))
 
 
-(def-prolog-compiler-macro = (goal body cont bindings)
+(def-prolog-compiler-macro = (trail goal body cont bindings)
   "Compile a goal which is a call to =."
   (let ((args (args goal)))
     (if (/= (length args) 2)
         :pass ;; decline to handle this goal
         (multiple-value-bind (code1 bindings1)
-            (compile-unify (first args) (second args) bindings)
-          (compile-if
-           code1
-           (compile-body '*trail* body cont bindings1))))))
+                             (compile-unify trail (first args) (second args) bindings)
+          (compile-if code1
+                      (compile-body trail body cont bindings1))))))
 
 
-(defun compile-clause (parms clause cont)
+(defun compile-clause (trail parms clause cont)
   "Transform away the head, and compile the resulting body."
   (bind-unbound-vars       
    parms                  
    ;; fix broken compilation of (setof ?x (or clause clause ..) ?answer)
    (if (member (car clause) '(if or and))
-       (compile-body '*trail* (list clause) cont (mapcar #'self-cons parms))
-       (compile-body '*trail*
+       (compile-body trail (list clause) cont (mapcar #'self-cons parms))
+       (compile-body trail
                      (nconc (mapcar #'make-= parms (args (clause-head clause)))
                             (clause-body clause))
                      cont
@@ -867,7 +865,6 @@
 
 
 ;***
-
 (defvar *uncompiled* nil 
   "Prolog symbols that have not been compiled.")
 
@@ -969,7 +966,7 @@
       `(defun ,*predicate* (,@parameters cont)
          .,(maybe-add-undo-bindings
             (mapcar (lambda (clause)
-                        (compile-clause parameters clause 'cont))
+                        (compile-clause '*trail* parameters clause 'cont))
                     clauses)))))))
 
 
@@ -1072,8 +1069,7 @@
          (t
           (let* ((macro (prolog-compiler-macro (predicate goal)))
                  (macro-val (if macro 
-                                (funcall macro goal (rest body) 
-                                         cont bindings))))
+                                (funcall macro trail goal (rest body) cont bindings))))
             (if (and macro (not (eq macro-val :pass)))
                 macro-val
                 `(,(make-predicate* (predicate goal)
@@ -1908,7 +1904,7 @@
 ;;           (unify! ?result (apply (first exp) (rest exp))))
 ;;      (funcall cont)))
 
-(def-prolog-compiler-macro lisp (goal body cont bindings)
+(def-prolog-compiler-macro lisp (trail goal body cont bindings)
   "lisp/1 and lisp/2"
   (let ((args (args goal)))
     (case (length args)
@@ -1918,16 +1914,15 @@
            `(progn
               (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
                      ,(compile-arg lisp-args bindings))
-              ,(compile-body '*trail* body cont bindings))))
+              ,(compile-body trail body cont bindings))))
       (2                                ; lisp/2
          (let* ((var (first args))
                 (lisp-exp (second args))
                 (lisp-args (variables-in lisp-exp)))
-           (compile-if
-            `(unify! *trail* ,(compile-arg var bindings)
-                     (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
-                            ,(compile-arg lisp-args bindings)))
-            (compile-body '*trail* body cont (bind-new-variables bindings goal)))))
+           (compile-if `(unify! ,trail ,(compile-arg var bindings)
+                                (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
+                                       ,(compile-arg lisp-args bindings)))
+                       (compile-body trail body cont (bind-new-variables bindings goal)))))
       (t :pass))))
 
 
@@ -2073,9 +2068,7 @@ and add a clause to the data base."
 		    ,(compile-body* trail (list else) 'cont bindings))))))
 	  (t
 	   (let* ((macro (prolog-compiler-macro (predicate goal)))
-		  (macro-val (if macro 
-				 (funcall macro goal (rest body) 
-					  cont bindings))))
+		  (macro-val (and macro (funcall macro trail goal (rest body) cont bindings))))
 	     (if (and macro (not (eq macro-val :pass)))
 		 macro-val
 		 `(let ((de-cont
@@ -2093,18 +2086,6 @@ and add a clause to the data base."
 			                  (args goal))
 		                de-cont)))))))))
 
-
-#||
-(prolog
-  (p0 a b c)
-  (p1 a b c))
-
-(prolog (fib 3 ?x))
-
-(prolog:prolog
-  (p0 a b c)
-  (p1 a b c))
-||#
 
 (defmacro prolog (&rest goals)
   "Run Prolog in the surrounding Lisp environment
