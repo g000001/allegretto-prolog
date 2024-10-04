@@ -1,4 +1,5 @@
 ;;;; -*- Mode: common-lisp; Syntax: Common-Lisp -*-
+#-ccl
 (declaim (optimize (speed 3) (safety 0) (compilation-speed 0)
                    (debug 0)))
 
@@ -59,7 +60,7 @@
 (defun zebra-benchmark (&optional (n 1000))
   (declare (optimize (speed 3) (safety 0)))
   (let (rt0 rt1)
-    (allegretto-prolog-0::prolog-compile-symbols)
+    (prolog-compile-symbols)
     (time (loop initially (setf rt0 (get-internal-run-time))
                 repeat n do (prolog* (zebra ?houses ?water-drinker ?zebra-owner)
                                      !  ; Stop once answer is found.  

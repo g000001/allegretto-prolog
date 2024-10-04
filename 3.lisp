@@ -1,6 +1,6 @@
 (cl:in-package cl-user)
 
-
+#-ccl
 (declaim (optimize (speed 3) (safety 0) (compilation-speed 0)
                    (debug 0)))
 

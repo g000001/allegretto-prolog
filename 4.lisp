@@ -1,6 +1,7 @@
 (cl:in-package cl-user)
 
 
+#-ccl
 (declaim (optimize (speed 3) (safety 0) (compilation-speed 0)
                    (debug 0)))
 
@@ -239,9 +240,26 @@
 
 (defmacro deref (exp)
   "Follow pointers for bound variables."
-  `(progn (loop while (and (var-p ,exp) (bound-p ,exp))
-                do (setf ,exp (var-binding ,exp)))
-          ,exp))
+  `(progn
+     (loop :while (and (var-p ,exp) (bound-p ,exp))
+           :do (setf ,exp (var-binding ,exp)))
+     ,exp))
+
+
+(defmacro deref-fail-return (block-tag exp)
+  `(fast
+    (loop :while (var-p 8)
+          :do (unless (bound-p 8) (return-from ,block-tag))
+              (setq ,exp (var-binding ,exp)))
+    ,exp))
+
+
+(defmacro deref-fail (exp)
+  "Follow pointers for bound variables."
+  `(progn
+     (loop :while (and (var-p ,exp) (bound-p ,exp))
+           :do (setf ,exp (var-binding ,exp)))
+     (and ,exp (throw 'deref-fail ,exp))))
 
 
 (defun print-var (var stream depth)
@@ -1006,6 +1024,14 @@
         exp)))
 
 
+(defun deref-exp-fail (exp)
+  (if (atom (deref-fail exp))
+      exp
+      (reuse-cons (deref-exp-fail (first exp))
+                  (deref-exp-fail (rest exp))
+                  exp)))
+
+
 (defvar *predicate* nil
   "The Prolog predicate currently being compiled")
 
@@ -1179,8 +1205,7 @@
                 ,@body)))|#
      (defun ,name (,@args)
        ,@body)
-     ;;',(cdr functor)
-     )))
+     ',(cdr functor))))
 
 
 (defpred fail/0 (trail cont)
@@ -2018,6 +2043,49 @@
       (t :pass))))
 
 
+(def-prolog-compiler-macro lisp* (trail goal body cont bindings)
+  "lisp*/1 and lisp*/2"
+  (let ((args (args goal)))
+    (case (length args)
+      (1                                ; lisp*/1
+       (let* ((lisp-exp (first args))
+              (lisp-args (variables-in lisp-exp)))
+         `(progn
+            (catch 'deref-fail
+              (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
+                     ,(compile-arg lisp-args bindings)))
+            ,(compile-body trail body cont bindings))))
+      (2                                ; lisp*/2
+       (let* ((var (first args))
+              (lisp-exp (second args))
+              (lisp-args (variables-in lisp-exp)))
+         (compile-if `(catch 'deref-fail
+                        (unify! ,trail ,(compile-arg var bindings)
+                                (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
+                                       ,(compile-arg lisp-args bindings))))
+                     (compile-body trail body cont (bind-new-variables bindings goal)))))
+      (t :pass))))
+
+
+(def-prolog-compiler-macro lispp* (trail goal body cont bindings)
+  (let ((args (args goal)))
+    (let* ((lisp-exp (first args))
+           (lisp-args (variables-in lisp-exp)))
+      `(and (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
+                   ,(compile-arg lisp-args bindings))
+            ,(compile-body trail body cont bindings)))))
+
+
+(def-prolog-compiler-macro lispp (trail goal body cont bindings)
+  (let ((args (args goal)))
+    (let* ((lisp-exp (first args))
+           (lisp-args (variables-in lisp-exp)))
+      `(and (catch 'deref-fail
+              (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
+                     ,(compile-arg lisp-args bindings)))
+            ,(compile-body trail body cont bindings)))))
+
+
 (in-package "ALLEGRETTO-PROLOG-4")
 
 
@@ -2064,6 +2132,15 @@ and add a clause to the data base."
           exp)
       (cons (insert-deref (car exp))
             (insert-deref (cdr exp)))))
+
+
+(defun insert-deref-fail (exp)
+  (if (atom exp)
+      (if (variable-p exp)
+          `(deref-exp-fail ,exp)
+          exp)
+      (cons (insert-deref-fail (car exp))
+            (insert-deref-fail (cdr exp)))))
 
 
 (defun prolog-translate-goals (goals)
@@ -2180,6 +2257,104 @@ and add a clause to the data base."
 		                de-cont)))))))))
 
 
+(defun generator/2 (trail ?item ?generator cont)
+  (declare (ignore))
+  (deref ?generator)
+  (loop (multiple-value-bind (item next?)
+                             (funcall ?generator)
+          (declare (ignore next?))
+          (cond ((and item (unify! trail ?item item))
+                 (funcall cont)
+                 (setf (var-binding ?item) unbound))
+                (T (return nil))))))
+
+
+(defun generator*/2 (trail ?item ?generator cont)
+  (declare (ignore))
+  (deref ?generator)
+  (loop (multiple-value-bind (item next?)
+                             (funcall ?generator)
+          (cond ((and next? (unify! trail ?item item))
+                 (funcall cont)
+                 (setf (var-binding ?item) unbound))
+                (T (return nil))))))
+
+
+(def-prolog-compiler-macro generating (trail goal body cont bindings)
+  (let ((generator (gensym "?generator")))
+    `(let ((,generator (?)))
+       ,(funcall (prolog-compiler-macro 'lisp)
+              trail
+              `(lisp ,generator ,(second (args goal)))
+              `((generator ,(first (args goal))
+                           ,generator)
+                ,@body)
+              cont
+              bindings))))
+
+
+(def-prolog-compiler-macro generating* (trail goal body cont bindings)
+  (let ((generator (gensym "?generator")))
+    `(let ((,generator (?)))
+       ,(funcall (prolog-compiler-macro 'lisp)
+                 trail
+                 `(lisp ,generator ,(second (args goal)))
+                 `((generator* ,(first (args goal))
+                               ,generator)
+                   ,@body)
+                 cont
+                 bindings))))
+
+
+(<-- (slot= ?instance ?slot-name ?slot-value)
+     (lisp ?slot-value (slot-value ?instance ?slot-name)))
+
+
+(<-- (slot=* ?instance ?slot-name ?slot-value)
+     (lispp* (and (slot-exists-p ?instance ?slot-name)
+                  (slot-boundp ?instance ?slot-name)))
+     (lisp ?slot-value (slot-value ?instance ?slot-name)))
+
+
+(def-prolog-compiler-macro = (trail goal body cont bindings)
+  "Compile a goal which is a call to =."
+  (let ((args (args goal)))
+    (if (/= (length args) 2)
+        :pass ;; decline to handle this goal
+        (multiple-value-bind (code1 bindings1)
+                             (compile-unify trail (first args) (second args) bindings)
+          (compile-if code1
+                      (compile-body trail body cont bindings1))))))
+
+
+(def-prolog-compiler-macro let (trail goal body cont bindings)
+  (destructuring-bind (op var val &optional decl)
+                      goal
+    (declare (ignore op))
+    `(let ((,var ,val))
+       ,decl
+       ,(compile-body trail body cont bindings))))
+
+
+(def-prolog-compiler-macro let* (trail goal body cont bindings)
+  (destructuring-bind (op var val &optional decl)
+                      goal
+    (declare (ignore op))
+    `(let* ((,var ,val))
+       (declare (special ,var))
+       ,decl
+       ,(compile-body trail body cont bindings))))
+
+
+(def-prolog-compiler-macro unwind-protect (trail goal body cont bindings)
+  (destructuring-bind (op &body cleanup-forms)
+                      goal
+    (declare (ignore op))
+    `(unwind-protect (catch 'deref-fail
+                       ,(compile-body trail body cont bindings))
+       ,@cleanup-forms)))
+
+
 (defmacro prolog (&rest goals)
   "Run Prolog in the surrounding Lisp environment
 which is accessed from lisp functor.
@@ -2249,14 +2424,5 @@ which is accessed from lisp functor.
        (length ?y ?n1)
        (is ?n (1+ ?n1))))
 
-;(prolog-compile-symbols)
-'(prolog
- (call (member ?x (0 1 2 3)))
- (lisp (print ?x)))
-
-'(prolog
- (length (0 1 2 3) ?x)
- ;(is ?x 42)
- (lisp (print ?x)))
 
 ;;; *EOF*

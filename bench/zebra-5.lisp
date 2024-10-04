@@ -7,18 +7,13 @@
 (cl:in-package :cl-user)
 
 
-(defpackage :zebra-2 (:use :cl :allegretto-prolog-2))
+(defpackage :zebra-5 (:use :cl :allegretto-prolog-5))
 
 
-(in-package :zebra-2)
+(in-package :zebra-5)
 
 
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
-
-(declaim (ftype function
-                allegretto-prolog-2::nextto/3
-                allegretto-prolog-2::iright/3
-                allegretto-prolog-2::member/2))
 
 
 (<-- (nextto ?x ?y ?list) (iright ?x ?y ?list))
@@ -72,40 +67,43 @@
 (defun zebra-benchmark (&optional (n 1000))
   (declare (optimize (speed 3) (safety 0)))
   (let (rt0 rt1)
-    (allegretto-prolog-2::prolog-compile-symbols)
+    (prolog-compile-symbols)
     (time (loop initially (setf rt0 (get-internal-run-time))
-                repeat n do (prolog* (zebra ?houses ?water-drinker ?zebra-owner)
-                                     !  ; Stop once answer is found.  
+                repeat n do (prolog (zebra ?houses ?water-drinker ?zebra-owner)
+                              !      ; Stop once answer is found.  
                                         ; This appears to be
                                         ; what other implementations do, 
                                         ; e.g. time/1 in
                                         ; SWI Prolog.
-                                     )
+                              )
                 finally (setf rt1 (get-internal-run-time))))
     (let (zebra-owner water-drinker houses)
-      (prolog* (zebra ?houses ?water-drinker ?zebra-owner)
-               ;; Nearly any cons structure created by Prolog 
-               ;; unification will be consed with
-               ;; dynamic extent.  It isn't safe to return such 
-               ;; structure outside the contour
-               ;; that created it.  Prolog doesn't need to worry, 
-               ;; since unification always
-               ;; has dynamic extent, but arbitrary Lisp 
-               ;; code needs to be careful.  The first
-               ;; two values this function will return are 
-               ;; symbols, but the third is a cons
-               ;; tree created by Prolog unification.  In order 
-               ;; to return it, the tree needs
-               ;; to be copied with indefinite extent.
-               (lisp (setf zebra-owner ?zebra-owner
-                           water-drinker ?water-drinker
-                           houses (copy-tree ?houses)))
-               !)
+      (prolog (zebra ?houses ?water-drinker ?zebra-owner)
+        ;; Nearly any cons structure created by Prolog 
+        ;; unification will be consed with
+        ;; dynamic extent.  It isn't safe to return such 
+        ;; structure outside the contour
+        ;; that created it.  Prolog doesn't need to worry, 
+        ;; since unification always
+        ;; has dynamic extent, but arbitrary Lisp 
+        ;; code needs to be careful.  The first
+        ;; two values this function will return are 
+        ;; symbols, but the third is a cons
+        ;; tree created by Prolog unification.  In order 
+        ;; to return it, the tree needs
+        ;; to be copied with indefinite extent.
+        (lisp (setf zebra-owner ?zebra-owner
+                    water-drinker ?water-drinker
+                    houses (copy-tree ?houses)))
+        !)
       (pprint (list
                (format nil
                        "~:D-LIPS"
                        (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
                zebra-owner water-drinker houses)))))
+
+
+;; (zebra-benchmark 1000)
 
 ;;; *EOF*
 

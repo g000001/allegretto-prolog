@@ -34,6 +34,7 @@
   (load (compile-file "allegretto-prolog:2"))
   (load (compile-file "allegretto-prolog:3"))
   (load (compile-file "allegretto-prolog:4"))
+  (load (compile-file "allegretto-prolog:5"))
   #+allegro (load (compile-file "allegretto-prolog:bench;zebra-allegro-prolog"))
   (load (compile-file "allegretto-prolog:bench;zebra-paiprolog"))
   (load (compile-file "allegretto-prolog:bench;zebra-0"))
@@ -41,19 +42,31 @@
   (load (compile-file "allegretto-prolog:bench;zebra-2"))
   (load (compile-file "allegretto-prolog:bench;zebra-3"))
   (load (compile-file "allegretto-prolog:bench;zebra-4"))
-  #+allegro (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRO-PROLOG")))
+  (load (compile-file "allegretto-prolog:bench;zebra-5"))
+
   (bench-gc)
-  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-PAIPROLOG")) #+(or ecl clisp) 10)
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-5")))
   (bench-gc)
-  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-0")) #+(or ecl clisp) 10)
-  (bench-gc)
-  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-1")))
-  (bench-gc)
-  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-2")))
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-4")))
   (bench-gc)
   (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-3")))
   (bench-gc)
-  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-4")))
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-2")))
+  (bench-gc)
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-1")))
+  (bench-gc)
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-0")) #+(or ecl clisp) 10)
+  (bench-gc)
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-PAIPROLOG")) #+(or ecl clisp) 10)
+  (bench-gc)
+  #+allegro (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRO-PROLOG")))
+  
+  
+  
+  
+  
+  
+  
   ;;#-lispworks (dribble)
   (xit))
 

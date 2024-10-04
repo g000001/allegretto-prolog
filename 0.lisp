@@ -88,7 +88,8 @@
            #:prolog
            #:prolog*
            #:prolog-collect
-           #:prolog-first))
+           #:prolog-first
+           #:prolog-compile-symbols))
 
 
 ;;; -*- Mode: Lisp; Syntax: Common-Lisp -*-
@@ -168,6 +169,8 @@
     (name (incf *var-counter*) :type adim)
     (binding unbound)))
 
+(unless (boundp 'null-var)
+  (defconstant null-var (?)))
 
 (defun bound-p (var) (not (eq (var-binding var) unbound)))
 
@@ -186,12 +189,9 @@
       (write var :stream stream)))
 
 
-(unless (boundp 'null-var)
-  (defconstant null-var (load-time-value (?))))
-
 ;;;; TRAIL
-(declaim (type (cons adim (simple-array var (*))) *trail*))
-(defvar *trail* (cons 0 (make-array 512 :element-type 'var :initial-element null-var)))
+(declaim (type (cons adim simple-vector) *trail*))
+(defvar *trail* (cons 0 (make-array 512 :initial-element nil)))
 
 (defmacro trail-ndx (trail)
   `(the adim (car ,trail)))
@@ -201,7 +201,7 @@
 
 (defun grow-prolog-trail (trail)
   (let* ((size (length (trail-vec trail)))
-         (new-trail-vec (make-array (* 2 size) :element-type 'var :initial-element null-var)))
+         (new-trail-vec (make-array (* 2 size) :initial-element nil)))
     (setf (trail-vec trail)
           (replace new-trail-vec (trail-vec trail)))
     new-trail-vec))
@@ -840,7 +840,7 @@
       `(defun ,*predicate* (,@parameters cont)
          .,(maybe-add-undo-bindings
             (mapcar (lambda (clause)
-                        (compile-clause parameters clause 'cont))
+                      (compile-clause parameters clause 'cont))
                     clauses)))))))
 
 (defun goal-cut-p (goal)
@@ -1808,16 +1808,26 @@ which is accessed from lisp functor.
                                     (car vars)
                                     `(values ,@vars))))))
 
-(declaim (ftype function
-                member/2
-                length/2))
+(declaim (ftype function member/2 length/2))
 
 (<-- (member ?item (?item . ?rest)))
-(<-  (member ?item (?x . ?rest)) (member ?item ?rest))
+(<-  (member ?item (? . ?rest)) (member ?item ?rest))
+
+'(DEFUN MEMBER/2 (?ARG1 ?ARG2 CONT)
+  (LET ((OLD-TRAIL (TRAIL-NDX *TRAIL*)))
+    (LET ((?REST (?)))
+      (IF (UNIFY! ?ARG2 (CONS ?ARG1 ?REST))
+          (FUNCALL CONT)))
+    (UNDO-BINDINGS! *TRAIL* OLD-TRAIL)
+    (LET ((?REST (?)))
+      (IF (UNIFY! ?ARG2 (CONS (?) ?REST))
+          (MEMBER/2 ?ARG1 ?REST CONT)))))
+
 
 (<-- (length () 0))
-(<- (length (?x . ?y) (1+ ?n)) (length ?y ?n))
-
+(<-  (length (?x . ?y) ?n)
+     (length ?y ?n1)
+     (is ?n (1+ ?n1)))
 
 (defmacro prolog* (&rest goals)
   "Run Prolog in the surrounding Lisp environment
@@ -1841,27 +1851,5 @@ which is accessed from lisp functor.
         (constantly nil)))))
 
 
-#||
-(<-- (fib 0 0))
-(<-  (fib 1 1))
-(<-  (fib ?n ?f)
-     (>= ?n 2)
-     (is ?n1 (1- ?n))
-     (is ?n2 (- ?n 2))
-     (fib ?n1 ?f1)
-     (fib ?n2 ?f2)
-     (is ?f (+ ?f1 ?f2)))
-||#
-;(?- (member ? (1 2 3)))
+(prolog-compile-symbols)
 
-
-#||
-*trail*
-
-(?- (fib 10 ?x))
-
-(time
-(prolog-first (?x)
-(fib 22 ?x)))
-
-||#

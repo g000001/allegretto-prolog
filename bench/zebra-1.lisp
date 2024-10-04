@@ -1,4 +1,5 @@
 ;;;; -*- Mode: common-lisp; Syntax: Common-Lisp -*-
+#-ccl
 (declaim (optimize (speed 3) (safety 0) (compilation-speed 0) (debug 0)))
 
 (defpackage :zebra-1 (:use :cl :allegretto-prolog-1))
