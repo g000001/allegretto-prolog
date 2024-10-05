@@ -1,13 +1,14 @@
+;;;; allegretto-prolog.asd -*- Mode: Lisp;-*- 
+
 (cl:in-package :asdf)
 
 
 (defsystem :allegretto-prolog
-  :components ())
-
-
-;(asdf:system-source-directory :allegretto-prolog)
-
-;(translate-logical-pathname "allegretto-prolog:paiprolog")
+  :serial t
+  :components ((:file "package")
+               (:file "var")
+               (:file "trail")
+               (:file "allegretto-prolog")))
 
 
 (setf (logical-pathname-translations "ALLEGRETTO-PROLOG")
@@ -36,6 +37,9 @@
   (funcall (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-PAIPROLOG")))
 
 
+#||||
+
+
 (defmethod operate ((operation compile-op)
                     (compo (eql (find-component :allegretto-prolog nil)))
                     &key)
@@ -56,6 +60,11 @@
                   "allegretto-prolog:2"
                   "allegretto-prolog:3"))
     (load file)))
+
+||||#
+
+
+()
 
 
 ;;; *EOF*

@@ -1,99 +1,8 @@
 (cl:in-package cl-user)
 
-
 #-ccl
 (declaim (optimize (speed 3) (safety 0) (compilation-speed 0)
                    (debug 0)))
-
-
-(defpackage :allegretto-prolog-4
-  (:use :cl)
-  (:shadow #:symbol)
-  (:export #:?-
-           #:<-
-           #:<--
-           #:?
-           #:fail
-           #:true
-           #:call
-           #:!
-           #:and
-           #:or
-           #:if
-           #:catch
-           #:throw
-           #:=
-           #:unify-with-occurs-check
-           #:\\=
-           #:var
-           #:atom
-           #:integer
-           #:real
-           #:atomic
-           #:compound
-           #:nonvar
-           #:number
-           #:==
-           #:\\==
-           #:@<
-           #:@=<
-           #:@>2
-           #:@>=
-           #:functor
-           #:arg
-           #:copy-term
-           #:is
-           #:|=:=|
-           #:=\\=
-           #:<
-           #:=<
-           #:>
-           #:>=
-           #:clause
-           #:current-predicate
-           #:asserta
-           #:assertz
-           #:retract
-           #:abolish
-           #:findall
-           #:bagof
-           #:current-input
-           #:current-output
-           #:set-input
-           #:set-output
-           #:close
-           #:flush-output
-           #:stream-property
-           #:at-end-of-stream
-           #:set-stream-position
-           #:get-char
-           #:put-char
-           #:nl
-           #:get-code
-           #:put-code
-           #:read
-           #:write
-           #:fail-if
-           #:once
-           #:repeat
-           #:atom-length
-           #:atom-concat
-           #:sub-atom
-           #:atom-chars
-           #:atom-codes
-           #:atom-characters
-           #:string-atom
-           #:string-list
-           #:char-code
-           #:number-chars
-           #:number-codes
-           #:lisp
-           #:prolog-compile-symbols
-           #:prolog
-           #:prolog*
-           #:prolog-collect
-           #:prolog-first))
-
 
 ;;; -*- Mode: Lisp; Syntax: Common-Lisp -*-
 ;;; Code from Paradigms of AI Programming
@@ -102,7 +11,7 @@
 ;;; File auxfns.lisp: Auxiliary functions used by all other programs
 ;;; Load this file before running any other programs.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 (defmacro nlet (name bindspec &body body)
@@ -180,10 +89,10 @@
 ;;; else.  This has not been done (for compatibility with the book).  
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun symbol (&rest args)
+  (defun symbolify (&rest args)
     "Concatenate symbols or strings to form an interned symbol"
     (with-standard-io-syntax
-      (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRETTO-PROLOG-4")))
+      (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRETTO-PROLOG")))
 
   (defun new-symbol (&rest args)
     "Concatenate symbols or strings to form an uninterned symbol"
@@ -191,143 +100,8 @@
       (make-symbol (format nil "~{~A~}" args)))))
 
 
-(declaim (type fixnum *var-counter*))
-
-
-(defvar *var-counter* 0)
-
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-(defconstant unbound (if (boundp 'unbound)
-			 (symbol-value 'unbound)
-			 "Unbound"))
-
-(defconstant var-tag
-  (if (boundp 'var-tag)
-      (symbol-value 'var-tag)
-      (load-time-value "PrologVar"))))
-
-
-(deftype var ()
-  `(cons (eql ,var-tag) T))
-
-
-(defun var-p (obj)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (and (consp obj)
-       (eq var-tag (car obj))))
-
-
-(defun ? ()
-  (cons var-tag unbound))
-
-
-(define-compiler-macro ? ()
-  `(cons (load-time-value var-tag)
-         (load-time-value unbound)))
-
-
-(defmacro var-binding (var)
-  `(cdr ,var))
-
-
-(defun var-name (var)
-  (cdr var))
-
-
-(defun bound-p (var) (not (eq (var-binding var) unbound)))
-
-
-(defmacro deref (exp)
-  "Follow pointers for bound variables."
-  `(progn
-     (loop :while (and (var-p ,exp) (bound-p ,exp))
-           :do (setf ,exp (var-binding ,exp)))
-     ,exp))
-
-
-(defmacro deref-fail-return (block-tag exp)
-  `(fast
-    (loop :while (var-p 8)
-          :do (unless (bound-p 8) (return-from ,block-tag))
-              (setq ,exp (var-binding ,exp)))
-    ,exp))
-
-
-(defmacro deref-fail (exp)
-  "Follow pointers for bound variables."
-  `(progn
-     (loop :while (and (var-p ,exp) (bound-p ,exp))
-           :do (setf ,exp (var-binding ,exp)))
-     (or ,exp (throw 'deref-fail ,exp))))
-
-
-(defun print-var (var stream depth)
-  (if (or (and *print-level*
-               (>= depth *print-level*))
-          (var-p (deref var)))
-      (format stream "?~A" (var-name var))
-      (write var :stream stream)))
-
-
 (unless (boundp 'null-var)
   (defconstant null-var (?)))
-
-
-;;;; TRAIL
-(declaim (type list *trail*))
-
-
-(deftype adim ()
-  `(integer 0 ,(1- array-total-size-limit)))
-
-
-(defvar *trail* nil)
-
-
-(defconstant default-trail-size 512)
-
-
-(defun allocate-trail-vec (size)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (the simple-vector (make-array size :initial-element nil)))
-
-
-(defun allocate-trail (size)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (the cons (cons 0 (allocate-trail-vec size))))
-
-
-(defmacro trail-ndx (trail)
-  `(the adim (car ,trail)))
-
-
-(defmacro trail-vec (trail)
-  `(the simple-vector (cdr ,trail)))
-
-
-(defun grow-prolog-trail (trail)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (let* ((size (length (trail-vec trail)))
-         (new-trail-vec (allocate-trail-vec (* 2 size))))
-    (declare (simple-vector new-trail-vec))
-    (setf (trail-vec trail)
-          (replace new-trail-vec (trail-vec trail)))
-    new-trail-vec))
-
-
-(defmacro vec-push (trail val)
-  (let ((gval (gensym)))
-    `(fast
-       (let* ((trail ,trail)
-              (,gval ,val)
-              (ndx (trail-ndx trail))
-              (vec (trail-vec trail))
-              (len (length (the simple-vector vec))))
-         (declare (type adim ndx len) (simple-vector vec))
-         (when (>= ndx len) (setq vec (grow-prolog-trail trail)))
-         (prog1 (setf (svref vec ndx) (the t ,gval))
-           (setf (trail-ndx trail) (1+ ndx)))))))
 
 
 ;;;; PATTERN MATCHING FACILITY
@@ -411,7 +185,7 @@
 
 ;;;; File unify.lisp: Unification functions
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 (defparameter *occurs-check* nil "Should we do the occurs check?")
@@ -478,7 +252,7 @@
 
 ;;;; File prolog.lisp: prolog from (11.3), with interactive backtracking.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 ;;;; does not include destructive unification (11.6); see prologc.lisp
@@ -625,7 +399,7 @@
 ;;;; File prologc.lisp: Final version of the compiler,
 ;;;; including all improvements from the chapter.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 (defmacro set-binding! (trail var value)
@@ -701,13 +475,13 @@
 
   (defun make-predicate (symbol arity)
     "Return the symbol: symbol/arity"
-    (symbol symbol '/ arity)))
+    (symbolify symbol '/ arity)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun make-new-predicate (symbol arity)
     ;;(new-symbol symbol '/ arity)
-    (symbol symbol '/ arity)            ;;;XXX
+    (symbolify symbol '/ arity)            ;;;XXX
     )
 
   (defun ensure-functor-locf* (name arity)
@@ -1024,14 +798,6 @@
         exp)))
 
 
-(defun deref-exp-fail (exp)
-  (if (atom (deref-fail exp))
-      exp
-      (reuse-cons (deref-exp-fail (first exp))
-                  (deref-exp-fail (rest exp))
-                  exp)))
-
-
 (defvar *predicate* nil
   "The Prolog predicate currently being compiled")
 
@@ -1182,7 +948,7 @@
 ;;; Bug fix by Adam Farquhar, farquhar@cs.utexas.edu.
 ;;; Trivia: Farquhar is Norvig's cousin.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -1242,7 +1008,7 @@
 (define-condition prolog-throw ()
   ((ball :initarg :ball :reader ball)))
 
-
+;;/
 (defpred catch/3 (trail ?goal ?catch ?recover cont)
   "7.8.9"
   (let ((trail-ndx (trail-ndx trail)))
@@ -1256,7 +1022,7 @@
 				     (signal c)))))
       (call/1 trail ?goal cont))))
 
-
+;;/
 (defpred throw/1 (trail ?ball cont)
   "7.8.10"
   (declare (ignore trail cont))
@@ -1273,14 +1039,14 @@
   (when (unify! trail ?arg1 ?arg2)
     (funcall cont)))
 
-
+;;/
 (defpred unify-with-occurs-check/2 (trail ?arg1 ?arg2 cont)
   "8.2.2"
   (let ((*occurs-check* t))
     (when (unify! trail ?arg1 ?arg2)
       (funcall cont))))
 
-
+;;/
 (defpred \\=/2 (trail ?arg1 ?arg2 cont)
   "8.2.3"
   (unless (unify! trail ?arg1 ?arg2)
@@ -1288,15 +1054,6 @@
 
 
 ;;; 8.3 type testing
-
-(defun unbound-var-p (exp)
-  "Is EXP an unbound var?"
-  (and (var-p exp) (not (bound-p exp))))
-
-
-(defun nonvarp (exp)
-  (not (unbound-var-p exp)))
-
 
 (defun atomicp (exp)
   ;; not ATOM, because we might be implementing unbound VARs as
@@ -1314,10 +1071,13 @@
                   (funcall cont)))))
   (define-type-testing-predicate var/1 "8.3.1" unbound-var-p)
   (define-type-testing-predicate atom/1 "8.3.2" symbolp)
+  ;;/
   (define-type-testing-predicate integer/1 "8.3.3" integerp)
+  ;;/
   (define-type-testing-predicate real/1 "8.3.4" floatp)
   (define-type-testing-predicate atomic/1 "8.3.5" atomicp)
-  ;;(assert (not (consp (?))))
+  (assert (not (consp (?))))
+  ;;/
   (define-type-testing-predicate compound/1 "8.3.6" consp)
   (define-type-testing-predicate nonvar/1 "8.3.7" nonvarp)
   ;; strictly, this should be (OR INTEGERP FLOATP).
@@ -1342,7 +1102,7 @@
   (when (deref-equal ?x ?y)
     (funcall cont)))
 
-
+;;/
 (defpred \\==/2 (trail ?x ?y cont)
   "8.4.2"
   (declare (ignore trail))
@@ -1382,14 +1142,14 @@
 				       (when (term-precedes xi yi)
 					 (return t))))))))))))
 
-
+;;/
 (defpred @</2 (trail ?x ?y cont)
   "8.4.3"
   (declare (ignore trail))
   (when (term-precedes ?x ?y)
     (funcall cont)))
 
-
+;;/
 (defpred @=</2 (trail ?x ?y cont)
   "8.4.4"
   (declare (ignore trail))
@@ -1397,13 +1157,13 @@
 	    (term-precedes ?x ?y))
     (funcall cont)))
 
-
+;;/
 (defpred @>/2 (trail ?x ?y cont)
   (declare (ignore trail))
   (when (term-precedes ?y ?x)
     (funcall cont)))
 
-
+;;/
 (defpred @>=/2 (trail ?x ?y cont)
   (declare (ignore trail))         
   (when (or (deref-equal ?y ?x)
@@ -1435,7 +1195,7 @@
   (when (unify! trail (nth (deref ?n) (deref ?term)) ?arg)
     (funcall cont)))
 
-
+;;/
 (defun =.. (trail ?term ?list cont)
   "8.5.3"
   ;; FIXME: have to decide how to represent Prolog lists
@@ -1489,16 +1249,23 @@
 		  ;; the coercion goes the other way.
 		  (when (,op (eval (deref-exp ?e1)) (eval (deref-exp ?e2)))
 		    (funcall cont))))))
+  ;;/
   (define-arithmetic-comparison-predicate |=:=|/2 =)
+  ;;/
   (define-arithmetic-comparison-predicate =\\=/2 /=)
+  ;;/
   (define-arithmetic-comparison-predicate </2 <)
+  ;;/
   (define-arithmetic-comparison-predicate =</2 <=)
+  ;;/
   (define-arithmetic-comparison-predicate >/2 >)
+  ;;/
   (define-arithmetic-comparison-predicate >=/2 >=))
 
 
 ;;; FIXME: 8.8 clause retrieval and information
 
+;;/
 (defpred clause/2 (trail ?head ?body cont)
   "8.8.1"
   (let ((clauses (get-clauses (predicate (deref ?head)))))
@@ -1508,7 +1275,7 @@
 	  (funcall cont))
         (undo-bindings! trail old-trail)))))
 
-
+;;/
 (defpred current-predicate/1 (trail ?pi cont)
   "8.8.2"
   ;; FIXME: need to refactor *DB-PREDICATES* so that it contains arity
@@ -1562,10 +1329,12 @@
   )
 
 
+
 ;;; 8.10 all solutions
 
 ;;; FIXME: I think this is right for FINDALL/3.  BAGOF/3 and SETOF/3
 ;;; have extra complicated stuff to do with witnesses.
+;;/
 (defpred findall/3 (trail term goal bag cont)
   "8.10.1: Find all solutions to GOAL, and for each solution,
   collect the value of TERM into the list BAG."
@@ -1639,19 +1408,19 @@
 
 ;;; FIXME: we probably want *prolog-standard-input* and
 ;;; *prolog-standard-output*, else things are likely to get confused.
-
+;;/
 (defpred current-input/1 (trail ?stream cont)
   "8.11.2"
   (when (unify! trail (deref ?stream) *standard-input*)
     (funcall cont)))
 
-
+;;/
 (defpred current-output/1 (trail ?stream cont)
   "8.11.3"
   (when (unify! trail (deref ?stream) *standard-output*)
     (funcall cont)))
 
-
+;;/
 (defpred set-input/1 (trail ?stream-or-alias cont)
   "8.11.4"
   (declare (ignore trail))
@@ -1659,7 +1428,7 @@
     (setf *standard-input* s)
     (funcall cont)))
 
-
+;;/
 (defpred set-output/1 (trail ?stream-or-alias cont)
   "8.11.5"
   (declare (ignore trail))
@@ -1667,7 +1436,7 @@
     (setf *standard-output* s)
     (funcall cont)))
 
-
+;;/
 (defpred open/4 (trail ?source/sink ?mode ?stream ?options cont)
   "8.11.6"
   (let ((element-type 'character)
@@ -1692,14 +1461,14 @@
 	  (push alias (get 'stream-aliases stream)))
 	(funcall cont)))))
 
-
+;;/
 (defpred close/1 (trail ?stream-or-alias cont)
   "8.11.7"
   ;; FIXME: this will fail if we change the representation of the
   ;; empty list.
   (close/2 trail ?stream-or-alias nil cont))
 
-
+;;/
 (defpred close/2 (trail ?stream-or-alias ?options cont)
   "8.11.8"
   (declare (ignore trail ?options))
@@ -1709,7 +1478,7 @@
     (close s))
   (funcall cont))
 
-
+;;/
 (defpred flush-output/0 (trail cont)
   "8.11.9"
   (declare (ignore trail))
@@ -1717,7 +1486,7 @@
   (finish-output *standard-output*)
   (funcall cont))
 
-
+;;/
 (defpred flush-output/1 (trail ?stream-or-alias cont)
   "8.11.10"
   (declare (ignore trail))
@@ -1728,7 +1497,7 @@
 
 ;;; FIXME: 8.11.11 stream-property/2.  Need a registry of all open
 ;;; streams.
-
+;;/
 (defpred at-end-of-stream/0 (trail cont)
   "8.11.12"
   ;; FIXME: we can fake this for character streams by doing peek-char
@@ -1736,14 +1505,14 @@
   (declare (ignore trail cont))
   )
 
-
+;;/
 (defpred at-end-of-stream/1 (trail ?stream-or-alias cont)
   "8.11.13"
   ;;; FIXME (see at-end-of-stream/0)
   (declare (ignore trail cont ?stream-or-alias))
   )
 
-
+;;/
 (defpred set-stream-position/2 (trail ?stream-or-alias ?position cont)
   "8.11.14"
   (declare (ignore trail))
@@ -1758,13 +1527,13 @@
 ;;; on characters (i.e. length-one symbols) and on character codes
 ;;; ("integers").  For now, character input/output works on characters
 ;;; and character-code input/output works on integers.
-
+;;/
 (defpred get-char/1 (trail ?char cont)
   "8.12.1"
   (when (unify! trail (deref ?char) (intern (string (read-char *standard-input*))))
     (funcall cont)))
 
-
+;;/
 (defpred get-char/2 (trail ?stream-or-alias ?char cont)
   "8.12.2"
   (with-stream (s (deref ?stream-or-alias))
@@ -1772,14 +1541,14 @@
     (when (unify! trail (deref ?char) (intern (string (read-char ?stream-or-alias))))
       (funcall cont))))
 
-
+;;/
 (defpred put-char/1 (trail ?char cont)
   "8.12.3"
   (declare (ignore trail))
   (write-char (character (deref ?char)) *standard-output*)
   (funcall cont))
 
-
+;;/
 (defpred put-char/2 (trail ?stream-or-alias ?char cont)
   "8.12.4"
   (declare (ignore trail))
@@ -1806,24 +1575,24 @@
 ;;; 8.13 character code input/output
 
 ;;; FIXME: see comment about element type for section 8.12
-
+;;/
 (defpred get-code/1 (trail ?code cont)
   (when (unify! trail (deref ?code) (read-byte *standard-output*))
     (funcall cont)))
 
-
+;;/
 (defpred get-code/2 (trail ?stream-or-alias ?code cont)
   (with-stream (s (deref ?stream-or-alias))
     (when (unify! trail (deref ?code) (read-byte s))
       (funcall cont))))
 
-
+;;/
 (defpred put-code/1 (trail ?code cont)
   (declare (ignore trail))
   (write-byte (deref ?code) *standard-output*)
   (funcall cont))
 
-
+;;/
 (defpred put-code/2 (trail ?stream-or-alias ?code cont)
   (declare (ignore trail))
   (with-stream (s (deref ?stream-or-alias))
@@ -1858,7 +1627,7 @@
                  collect `(undo-bindings! ,trail old-trail)
                  collect exp))))
 
-
+;;/
 (defpred fail-if/1 (trail relation cont)
   "8.15.1: Negation by failure: If you can't prove G, then (not G) true."
   ;; Either way, undo the bindings.
@@ -1866,14 +1635,14 @@
     (call/1 trail relation (lambda () (return-from fail-if/1 nil)))
     (funcall cont)))
 
-
+;;/
 (defpred once/1 (trail thing cont)
   "8.15.2"
   (with-undo-bindings (trail)
     (call/1 trail thing cont)
     nil))
 
-
+;;/
 (defpred repeat/0 (trail cont)
   "8.15.3"
   (declare (ignore trail))
@@ -1881,13 +1650,13 @@
 
 
 ;;; 8.16 constant processing
-
+;;/
 (defpred atom-length/2 (trail ?atom ?length cont)
   "8.16.1"
   (when (unify! trail (length (string (deref ?atom))) ?length)
     (funcall cont)))
 
-
+;;/
 (defpred atom-concat/3 (trail ?atom1 ?atom2 ?atom12 cont)
   "8.16.2"
   (if (unbound-var-p (deref ?atom12))
@@ -1909,7 +1678,7 @@
               (funcall cont))
             (undo-bindings! trail old-trail))))))
 
-
+;;/
 (defpred sub-atom/4 (trail ?atom ?start ?length ?sub-atom cont)
   "8.16.3"
   (let* ((string (string (deref ?atom)))
@@ -1934,7 +1703,7 @@
 (defun explode (symbol)
   (loop for x across (string symbol) collect (intern (string x))))
 
-
+;;/
 (defpred atom-chars/2 (trail ?atom ?list cont)
   "8.16.4"
   (if (unbound-var-p (deref ?atom))
@@ -1943,7 +1712,7 @@
       (when (unify! trail (explode ?atom) (deref ?list))
         (funcall cont))))
 
-
+;;/
 (defpred atom-codes/2 (trail ?atom ?codes cont)
   "8.16.5"
   (when (if (unbound-var-p (deref ?atom))
@@ -1956,7 +1725,7 @@
                     (deref ?codes)))
     (funcall cont)))
 
-
+;;/
 (defpred atom-characters/2 (trail ?atom ?characters cont)
   "for Common Lisp"
   (when (if (unbound-var-p (deref ?atom))
@@ -1967,7 +1736,7 @@
                     (deref ?characters)))
     (funcall cont)))
 
-
+;;/
 (defpred string-atom/2 (trail ?string ?atom cont)
   "for Common Lisp"
   (when (if (unbound-var-p (deref ?string))
@@ -1975,14 +1744,14 @@
             (unify! trail (intern ?string) (deref ?atom)))
     (funcall cont)))
 
-
+;;/
 (defpred string-list/2 (trail ?string ?list cont)
   (when (if (unbound-var-p (deref ?string))
             (unify! trail ?string (coerce (deref-exp ?list) 'string))
             (unify! trail (coerce ?string 'list) (deref ?list)))
     (funcall cont)))
 
-
+;;/
 (defpred char-code/2 (trail ?char ?code cont)
   "8.16.6"
   (if (unbound-var-p (deref ?char))
@@ -1991,7 +1760,7 @@
       (when (unify! trail (char-code (character ?char)) (deref ?code))
         (funcall cont))))
 
-
+;;/
 (defpred number-chars/2 (trail ?number ?list cont)
   "8.16.7"
   (if (unbound-var-p (deref ?number))
@@ -2001,7 +1770,7 @@
       (when (unify! trail (explode (intern (princ-to-string ?number))) (deref ?list))
         (funcall cont))))
 
-
+;;/
 (defpred number-codes/2 (trail ?number ?list cont)
   "8.16.8"
   (if (unbound-var-p (deref ?number))
@@ -2043,50 +1812,7 @@
       (t :pass))))
 
 
-(def-prolog-compiler-macro lisp* (trail goal body cont bindings)
-  "lisp*/1 and lisp*/2"
-  (let ((args (args goal)))
-    (case (length args)
-      (1                                ; lisp*/1
-       (let* ((lisp-exp (first args))
-              (lisp-args (variables-in lisp-exp)))
-         `(progn
-            (catch 'deref-fail
-              (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
-                     ,(compile-arg lisp-args bindings)))
-            ,(compile-body trail body cont bindings))))
-      (2                                ; lisp*/2
-       (let* ((var (first args))
-              (lisp-exp (second args))
-              (lisp-args (variables-in lisp-exp)))
-         (compile-if `(catch 'deref-fail
-                        (unify! ,trail ,(compile-arg var bindings)
-                                (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
-                                       ,(compile-arg lisp-args bindings))))
-                     (compile-body trail body cont (bind-new-variables bindings goal)))))
-      (t :pass))))
-
-
-(def-prolog-compiler-macro lispp* (trail goal body cont bindings)
-  (let ((args (args goal)))
-    (let* ((lisp-exp (first args))
-           (lisp-args (variables-in lisp-exp)))
-      `(and (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
-                   ,(compile-arg lisp-args bindings))
-            ,(compile-body trail body cont bindings)))))
-
-
-(def-prolog-compiler-macro lispp (trail goal body cont bindings)
-  (let ((args (args goal)))
-    (let* ((lisp-exp (first args))
-           (lisp-args (variables-in lisp-exp)))
-      `(and (catch 'deref-fail
-              (apply (lambda ,lisp-args ,(insert-deref lisp-exp))
-                     ,(compile-arg lisp-args bindings)))
-            ,(compile-body trail body cont bindings)))))
-
-
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRETTO-PROLOG")
 
 
 (defun retract-same-arity-clause (clause)
@@ -2132,15 +1858,6 @@ and add a clause to the data base."
           exp)
       (cons (insert-deref (car exp))
             (insert-deref (cdr exp)))))
-
-
-(defun insert-deref-fail (exp)
-  (if (atom exp)
-      (if (variable-p exp)
-          `(deref-exp-fail ,exp)
-          exp)
-      (cons (insert-deref-fail (car exp))
-            (insert-deref-fail (cdr exp)))))
 
 
 (defun prolog-translate-goals (goals)
@@ -2255,104 +1972,6 @@ and add a clause to the data base."
 			                    (compile-arg arg bindings))
 			                  (args goal))
 		                de-cont)))))))))
-
-
-(defun generator/2 (trail ?item ?generator cont)
-  (declare (ignore))
-  (deref ?generator)
-  (loop (multiple-value-bind (item next?)
-                             (funcall ?generator)
-          (declare (ignore next?))
-          (cond ((and item (unify! trail ?item item))
-                 (funcall cont)
-                 (setf (var-binding ?item) unbound))
-                (T (return nil))))))
-
-
-(defun generator*/2 (trail ?item ?generator cont)
-  (declare (ignore))
-  (deref ?generator)
-  (loop (multiple-value-bind (item next?)
-                             (funcall ?generator)
-          (cond ((and next? (unify! trail ?item item))
-                 (funcall cont)
-                 (setf (var-binding ?item) unbound))
-                (T (return nil))))))
-
-
-(def-prolog-compiler-macro generating (trail goal body cont bindings)
-  (let ((generator (gensym "?generator")))
-    `(let ((,generator (?)))
-       ,(funcall (prolog-compiler-macro 'lisp)
-              trail
-              `(lisp ,generator ,(second (args goal)))
-              `((generator ,(first (args goal))
-                           ,generator)
-                ,@body)
-              cont
-              bindings))))
-
-
-(def-prolog-compiler-macro generating* (trail goal body cont bindings)
-  (let ((generator (gensym "?generator")))
-    `(let ((,generator (?)))
-       ,(funcall (prolog-compiler-macro 'lisp)
-                 trail
-                 `(lisp ,generator ,(second (args goal)))
-                 `((generator* ,(first (args goal))
-                               ,generator)
-                   ,@body)
-                 cont
-                 bindings))))
-
-
-(<-- (slot= ?instance ?slot-name ?slot-value)
-     (lisp ?slot-value (slot-value ?instance ?slot-name)))
-
-
-(<-- (slot=* ?instance ?slot-name ?slot-value)
-     (lispp* (and (slot-exists-p ?instance ?slot-name)
-                  (slot-boundp ?instance ?slot-name)))
-     (lisp ?slot-value (slot-value ?instance ?slot-name)))
-
-
-(def-prolog-compiler-macro = (trail goal body cont bindings)
-  "Compile a goal which is a call to =."
-  (let ((args (args goal)))
-    (if (/= (length args) 2)
-        :pass ;; decline to handle this goal
-        (multiple-value-bind (code1 bindings1)
-                             (compile-unify trail (first args) (second args) bindings)
-          (compile-if code1
-                      (compile-body trail body cont bindings1))))))
-
-
-(def-prolog-compiler-macro let (trail goal body cont bindings)
-  (destructuring-bind (op var val &optional decl)
-                      goal
-    (declare (ignore op))
-    `(let ((,var ,val))
-       ,decl
-       ,(compile-body trail body cont bindings))))
-
-
-(def-prolog-compiler-macro let* (trail goal body cont bindings)
-  (destructuring-bind (op var val &optional decl)
-                      goal
-    (declare (ignore op))
-    `(let* ((,var ,val))
-       (declare (special ,var))
-       ,decl
-       ,(compile-body trail body cont bindings))))
-
-
-(def-prolog-compiler-macro unwind-protect (trail goal body cont bindings)
-  (destructuring-bind (op &body cleanup-forms)
-                      goal
-    (declare (ignore op))
-    `(unwind-protect (catch 'deref-fail
-                       ,(compile-body trail body cont bindings))
-       ,@cleanup-forms)))
 
 
 (defmacro prolog (&rest goals)
