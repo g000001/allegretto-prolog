@@ -1318,6 +1318,30 @@
       (t :pass))))
 
 
+(define-prolog-compiler-macro lisp* (trail goal body cont bindings)
+  "lisp*/1 and lisp*/2"
+  (let ((args (args goal)))
+    (case (length args)
+      (1                                ; lisp*/1
+       (let* ((lisp-exp (first args))
+              (lisp-args (variables-in lisp-exp)))
+         `(progn
+            (catch 'deref-fail
+              (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
+                     ,(compile-arg lisp-args bindings)))
+            ,(compile-body trail body cont bindings))))
+      (2                                ; lisp*/2
+       (let* ((var (first args))
+              (lisp-exp (second args))
+              (lisp-args (variables-in lisp-exp)))
+         (compile-if `(catch 'deref-fail
+                        (unify! ,trail ,(compile-arg var bindings)
+                                (apply (lambda ,lisp-args ,(insert-deref-fail lisp-exp))
+                                       ,(compile-arg lisp-args bindings))))
+                     (compile-body trail body cont (bind-new-variables bindings goal)))))
+      (t :pass))))
+
+
 (in-package "ALLEGRETTO-PROLOG")
 
 
@@ -1364,6 +1388,15 @@ and add a clause to the data base."
           exp)
       (cons (insert-deref (car exp))
             (insert-deref (cdr exp)))))
+
+
+(defun insert-deref-fail (exp)
+  (if (atom exp)
+      (if (variable-p exp)
+          `(deref-exp-fail ,exp)
+          exp)
+      (cons (insert-deref-fail (car exp))
+            (insert-deref-fail (cdr exp)))))
 
 
 (defun prolog-translate-goals (goals)
@@ -1605,14 +1638,75 @@ which is accessed from lisp functor.
                  bindings))))
 
 
-(<-- (slot= ?instance ?slot-name ?slot-value)
-     (lisp ?slot-value (slot-value ?instance ?slot-name)))
+(progn
+  #|
+   (<-- (slot= ?instance ?slot-name ?slot-value)
+        (lisp ?slot-value (slot-value ?instance ?slot-name)))
+   |#
+  (defun slot=/3 (trail ?arg1 ?arg2 ?arg3 cont)
+    (if (unify! trail
+                ?arg3
+                (apply (lambda (?instance ?slot-name)
+                         (slot-value (deref-exp ?instance) (deref-exp ?slot-name)))
+                       (list ?arg1 ?arg2)))
+        (funcall cont))))
 
 
-(<-- (slot=* ?instance ?slot-name ?slot-value)
-     (lispp* (and (slot-exists-p ?instance ?slot-name)
-                  (slot-boundp ?instance ?slot-name)))
-     (lisp ?slot-value (slot-value ?instance ?slot-name)))
+(progn
+  #|
+  (<-- (slot=* ?instance ?slot-name ?slot-value)
+       (lispp* (and (slot-exists-p ?instance ?slot-name)
+                    (slot-boundp ?instance ?slot-name)))
+       (lisp ?slot-value (slot-value ?instance ?slot-name)))
+   |#
+  (defun slot=*/3 (trail ?arg1 ?arg2 ?arg3 cont)
+    (and (apply (lambda (?instance ?slot-name)
+                  (and (slot-exists-p (deref-exp ?instance) (deref-exp ?slot-name))
+                       (slot-boundp (deref-exp ?instance) (deref-exp ?slot-name))))
+                (list ?arg1 ?arg2))
+         (if (unify! trail
+                     ?arg3
+                     (apply (lambda (?instance ?slot-name)
+                              (slot-value (deref-exp ?instance) (deref-exp ?slot-name)))
+                            (list ?arg1 ?arg2)))
+             (funcall cont)))))
+
+
+(defun slot-value/3 (trail ?instance ?slot-name ?slot-value cont)
+  (catch 'deref-fail
+    (let ((instance (deref-exp ?instance))
+          (slot-name (deref-exp ?slot-name)))
+      (if (slot-boundp instance slot-name)
+          (and (unify! trail
+                       ?slot-value
+                       (slot-value instance slot-name))
+               (funcall cont))
+          (progn
+            (setf (slot-value instance slot-name) (deref-exp-fail ?slot-value))
+            (and (unify! trail
+                         ?slot-value
+                         (slot-value instance slot-name))
+                 (funcall (lambda ()
+                            (funcall cont)
+                            (slot-makunbound instance slot-name)))))))))
+
+
+
+(defun slot-value!/3 (trail ?instance ?slot-name ?slot-value cont)
+  (catch 'deref-fail
+    (let ((instance (deref-exp ?instance))
+          (slot-name (deref-exp ?slot-name)))
+      (if (slot-boundp instance slot-name)
+          (and (unify! trail
+                       ?slot-value
+                       (slot-value instance slot-name))
+               (funcall cont))
+          (progn
+            (setf (slot-value instance slot-name) (deref-exp-fail ?slot-value))
+            (and (unify! trail
+                         ?slot-value
+                         (slot-value instance slot-name))
+                 (funcall cont)))))))
 
 
 (define-prolog-compiler-macro let (trail goal body cont bindings)
