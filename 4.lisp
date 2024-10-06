@@ -180,15 +180,15 @@
 ;;; else.  This has not been done (for compatibility with the book).  
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun symbol (&rest args)
-    "Concatenate symbols or strings to form an interned symbol"
-    (with-standard-io-syntax
-      (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRETTO-PROLOG-4")))
+(defun symbol (&rest args)
+  "Concatenate symbols or strings to form an interned symbol"
+  (with-standard-io-syntax
+    (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRETTO-PROLOG-4")))
 
-  (defun new-symbol (&rest args)
-    "Concatenate symbols or strings to form an uninterned symbol"
-    (with-standard-io-syntax
-      (make-symbol (format nil "~{~A~}" args)))))
+(defun new-symbol (&rest args)
+  "Concatenate symbols or strings to form an uninterned symbol"
+  (with-standard-io-syntax
+    (make-symbol (format nil "~{~A~}" args)))))
 
 
 (declaim (type fixnum *var-counter*))

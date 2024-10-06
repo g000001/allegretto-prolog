@@ -19,7 +19,6 @@
                                  '(:wild-inferiors))
                          :case :common))))
 
-
 (defun load-paiprolog ()
   (load (compile-file "allegretto-prolog:paiprolog")))
 
@@ -32,9 +31,29 @@
   (load (compile-file "allegretto-prolog:1")))
 
 
-(defun zebra-paiprolog ()
+(defun cl-user::zebra-paiprolog ()
   (load (compile-file "allegretto-prolog:bench;zebra-paiprolog"))
   (funcall (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-PAIPROLOG")))
+
+
+(defun cl-user::zebra-allegretto-prolog ()
+  (ignore-errors (mapc #'delete-package (package-used-by-list :allegretto-prolog)))
+  (ignore-errors (delete-package :allegretto-prolog))
+  (setq *features* (delete :cons-var *features*))
+  (load-system :allegretto-prolog :force T)
+  (load (compile-file "allegretto-prolog:bench;zebra-allegretto-prolog"))
+  (funcall (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRETTO-PROLOG")))
+
+
+(defun cl-user::zebra-allegretto-prolog/cons-var ()
+  (ignore-errors (mapc #'delete-package (package-used-by-list :allegretto-prolog)))
+  (ignore-errors (delete-package :allegretto-prolog))
+  (pushnew :cons-var *features*)
+  (load-system :allegretto-prolog :force T)
+  (load (compile-file "allegretto-prolog:bench;zebra-allegretto-prolog"))
+  (funcall (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRETTO-PROLOG")))
+
+
 
 
 #||||

@@ -9,7 +9,7 @@
    #:! #:*leash-limit* #:*prolog-leash-indent-wrap*
    #:*prolog-stack-limit* #:<- #:<-- #:== #:? #:?! #:?* #:?*! #:?- #:??
    #:abolish #:arg #:asserta #:assertz #:atomic #:bagof #:call #:consult
-   #:copy-term #:cut #:def-prolog-compiler-macro #:erase #:fail #:functor
+   #:copy-term #:cut #:define-prolog-compiler-macro #:erase #:fail #:functor
    #:generating #:generating* #:generator #:generator* #:ground #:is
    #:leash #:leash-1 #:lisp #:lisp! #:lisp* #:lisp*! #:lispp #:lispp!
    #:lispp!* #:lispp* #:listing #:memberp #:nl #:nonvar #:optional

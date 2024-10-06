@@ -1,5 +1,8 @@
 ;;; -*- mode: Lisp; coding: utf-8  -*-
 
+(declaim (optimize (speed 3) (safety 0) (compilation-speed 0) (debug 0)))
+
+
 (cl:in-package allegretto-prolog)
 
 
