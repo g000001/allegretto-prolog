@@ -1691,7 +1691,6 @@ which is accessed from lisp functor.
                             (slot-makunbound instance slot-name)))))))))
 
 
-
 (defun slot-value!/3 (trail ?instance ?slot-name ?slot-value cont)
   (catch 'deref-fail
     (let ((instance (deref-exp ?instance))
@@ -1735,6 +1734,24 @@ which is accessed from lisp functor.
     `(unwind-protect (catch 'deref-fail
                        ,(compile-body trail body cont bindings))
        ,@cleanup-forms)))
+
+
+(defun leash-1 (functor arity)
+  (eval `(trace ',functor ',arity)))
+
+
+(defun unleash-1 (functor arity)
+  (eval `(untrace ',functor ',arity)))
+
+
+(defmacro leash (&rest functor/arity)
+  `(trace ,@(loop :for (functor arity) :on functor/arity :by #'cddr
+                  :collect (make-predicate* functor arity))))
+
+
+(defmacro unleash (&rest functor/arity)
+  `(untrace ,@(loop :for (functor arity) :on functor/arity :by #'cddr
+                    :collect (make-predicate* functor arity))))
 
 
 (prolog-compile-symbols)
