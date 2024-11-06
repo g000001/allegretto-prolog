@@ -169,6 +169,7 @@
     (name (incf *var-counter*) :type adim)
     (binding unbound)))
 
+
 (unless (boundp 'null-var)
   (defconstant null-var (?)))
 
@@ -1852,4 +1853,7 @@ which is accessed from lisp functor.
 
 
 (prolog-compile-symbols)
+
+
+
 

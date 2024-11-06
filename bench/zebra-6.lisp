@@ -7,10 +7,10 @@
 (cl:in-package :cl-user)
 
 
-(defpackage :zebra-3 (:use :cl :allegretto-prolog-3))
+(defpackage :zebra-6 (:use :cl :allegretto-prolog-6))
 
 
-(in-package :zebra-3)
+(in-package :zebra-6)
 
 (defvar *zebra-result* "")
 

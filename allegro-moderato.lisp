@@ -6,9 +6,11 @@
                    (debug 0)))
 
 
-(defpackage :allegretto-prolog-4
+(defpackage :allegro-moderato
   (:use :cl)
   (:shadow #:symbol)
+  (:shadowing-import-from prolog var-tag unbound)
+  ;;(:shadowing-import-from prolog make-anonymous anonymous-variables-in anon-vars-in)
   (:export #:?-
            #:<-
            #:<--
@@ -102,7 +104,7 @@
 ;;; File auxfns.lisp: Auxiliary functions used by all other programs
 ;;; Load this file before running any other programs.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 (defmacro nlet (name bindspec &body body)
@@ -174,6 +176,28 @@
              :test (complement test) keyword-args)))
 
 
+'(loop :for s :being :the :symbols :of :prolog
+      :when (compiler-macro-function s)
+        :collect s)
+'(;;PROLOG::DEREF-EXP
+  ;;PROLOG::VAR-P
+  PROLOG::WHEN-UNIFY!
+  PROLOG::CONS-ANON-VAR-P
+  ;;PROLOG::UNBOUND-VAR-P
+  PROLOG::LET-DE
+  PROLOG::DE-CONSIFY
+  PROLOG::ADD-CLAUSE
+  PROLOG::NON-ANON-BOUND-P
+  ;;PROLOG::SET-VAR-BINDING
+  ;;PROLOG::BOUND-P
+  PROLOG::LENGTH=1
+  PROLOG::UNIFY!
+  PROLOG::CONS-VAR-P
+  ;;PROLOG:?
+  )
+
+
+
 ;;; NOTE: In ANSI Common Lisp, the effects of adding a definition (or most
 ;;; anything else) to a symbol in the common-lisp package is undefined.
 ;;; Therefore, it would be best to rename the function SYMBOL to something 
@@ -183,12 +207,15 @@
 (defun symbol (&rest args)
   "Concatenate symbols or strings to form an interned symbol"
   (with-standard-io-syntax
-    (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRETTO-PROLOG-4")))
+    (intern (format nil "~:@(~{~A~}~)" args) "ALLEGRO-MODERATO")))
 
 (defun new-symbol (&rest args)
   "Concatenate symbols or strings to form an uninterned symbol"
   (with-standard-io-syntax
     (make-symbol (format nil "~{~A~}" args)))))
+
+
+(defvar *anonymous-var* prolog::*anonymous-var*)
 
 
 (declaim (type fixnum *var-counter*))
@@ -197,7 +224,7 @@
 (defvar *var-counter* 0)
 
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+'''(eval-when (:compile-toplevel :load-toplevel :execute)
 (defconstant unbound (if (boundp 'unbound)
 			 (symbol-value 'unbound)
 			 "Unbound"))
@@ -226,6 +253,31 @@
               (eq (car ,x) (load-time-value var-tag)))))))
 
 
+#|
+;; disassembly of #<Function VAR-P>
+;; formals: PROLOG::X
+;; constant vector:
+0: "PrologVar"
+
+;; code start: #x10003d3e630:
+   0: 48 89 f8       movq	%RAX,%RDI
+   3: 48 83 e0 0f    and	%RAX,$15
+   7: 48 83 f8 01    cmp	%RAX,$1
+  11: 74 0a          jZ	23
+  13: 4c 89 ff       movq	%RDI,%R15
+  16: f8             clc
+  17: 4c 8b 74 24 10 movq	%R14,[%RSP+16]
+  22: c3             ret
+  23: 4c 8b 6f ef    movq	%R13,[%RDI-17]
+  27: 4d 3b 6e 36    cmpq	%R13,[%R14+54]  ; "PrologVar"
+  31: 49 8d 7f 82    leaq	%RDI,[%R15-126] ; T
+  35: 49 0f 45 ff    cmovnzq	%RDI,%R15
+  39: f8             clc
+  40: eb e7          jmp	17
+
+|#
+
+
 (defun ? ()
   (cons var-tag unbound))
 
@@ -243,7 +295,57 @@
   (cdr var))
 
 
-(defun bound-p (var) (not (eq (var-binding var) unbound)))
+#|
+;; disassembly of #<Function BOUND-P>
+;; formals: PROLOG:VAR
+;; constant vector:
+0: {Anon}
+1: "Unbound"
+
+;; code start: #x10003d3dfd0:
+   0: 48 83 ec 68    sub	%RSP,$104
+   4: 4c 89 74 24 08 movq	[%RSP+8],%R14
+   9: 48 83 f8 08    cmp	%RAX,$8
+  13: 74 01          jZ	16
+  15: 06             (push es)          ; SYS::TRAP-ARGERR
+  16: 41 80 7f a7 00 cmpb	[%R15-89],$0    ; SYS::C_INTERRUPT-PENDING
+  21: 74 01          jZ	24
+  23: 17             (pop ss)           ; SYS::TRAP-SIGNAL-HIT
+  24: 49 3b 7e 36    cmpq	%RDI,[%R14+54]  ; {Anon}
+  28: 4d 8d 6f 82    leaq	%R13,[%R15-126] ; T
+  32: 4d 0f 45 ef    cmovnzq	%R13,%R15
+  36: 4d 39 ef       cmpq	%R15,%R13
+  39: 74 1f          jZ	72
+  41: 4d 39 ef       cmpq	%R15,%R13
+  44: 49 8d 7f 82    leaq	%RDI,[%R15-126] ; T
+  48: 49 0f 45 ff    cmovnzq	%RDI,%R15
+  52: f8             clc
+  53: 4c 8b 74 24 78 movq	%R14,[%RSP+120]
+  58: 4c 89 bc 24 88 movq	[%RSP+136],%R15
+      00 00 00 
+  66: 48 8d 64 24 68 leaq	%RSP,[%RSP+104]
+  71: c3             ret
+  72: 41 ff 57 67    call	*[%R15+103]     ; SYS::QCDR
+  76: 49 3b 7e 3e    cmpq	%RDI,[%R14+62]  ; "Unbound"
+  80: 4d 8d 6f 82    leaq	%R13,[%R15-126] ; T
+  84: 4d 0f 45 ef    cmovnzq	%R13,%R15
+  88: eb cf          jmp	41
+
+|#
+
+;(declaim (inline bound-p))
+;(unintern 'bound-p 'allegro-moderato)
+(defun bound-p (var)
+  (not (or ;;(eq var (load-time-value *anonymous-var*))
+           (eq (var-binding var)
+               (load-time-value unbound)))))
+
+
+(define-compiler-macro bound-p (var)
+  `(fast
+     (not (or ;;(eq ,var (load-time-value *anonymous-var*))
+              (eq (var-binding ,var)
+                  (load-time-value unbound))))))
 
 
 (defmacro deref (exp)
@@ -391,21 +493,21 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun variable-p (x)
-    "Is x a variable (a symbol beginning with `?')?"
+  "Is x a variable (a symbol beginning with `?')?"
     (and (symbolp x) (equal (elt (symbol-name x) 0) #\?)))
 
   (defun reuse-cons (x y x-y)
-    "Return (cons x y), or reuse x-y if it is equal to (cons x y)"
-    (if (and (eql x (car x-y)) (eql y (cdr x-y)))
-        x-y
-        (cons x y)))
+  "Return (cons x y), or reuse x-y if it is equal to (cons x y)"
+  (if (and (eql x (car x-y)) (eql y (cdr x-y)))
+      x-y
+      (cons x y)))
   
   (defun length=1 (x) 
-    "Is x a list of length 1?"
+  "Is x a list of length 1?"
     (and (consp x) (null (cdr x))))
-
   (define-compiler-macro length=1 (x)
-    `(and (consp ,x) (null (cdr ,x)))))
+    `(and (consp ,x) (null (cdr ,x))))
+  )
 
 
 (defun find-if-anywhere (predicate tree)
@@ -422,7 +524,7 @@
 
 ;;;; File unify.lisp: Unification functions
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 (defparameter *occurs-check* nil "Should we do the occurs check?")
@@ -489,7 +591,7 @@
 
 ;;;; File prolog.lisp: prolog from (11.3), with interactive backtracking.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 ;;;; does not include destructive unification (11.6); see prologc.lisp
@@ -530,21 +632,6 @@
   (sublis (mapcar (lambda (var) (cons var (gensym (string var))))
                   (variables-in x))
           x))
-
-
-(defun unique-find-anywhere-if (predicate tree
-                                &optional found-so-far)
-  "return a list of leaves of tree satisfying predicate,
-  with duplicates removed."
-  (if (atom tree)
-      (if (funcall predicate tree)
-          (adjoin tree found-so-far)
-          found-so-far)
-      (unique-find-anywhere-if
-        predicate
-        (first tree)
-        (unique-find-anywhere-if predicate (rest tree)
-                                 found-so-far))))
 
 
 (defun find-anywhere-if (predicate tree)
@@ -610,16 +697,27 @@
       (continue-p))))
 
 
-(defun variables-in (exp)
-  "Return a list of all the variables in EXP."
-  (unique-find-anywhere-if #'non-anon-variable-p exp))
-
-
-(defun non-anon-variable-p (x)
-  (and (variable-p x) (not (eq x '?))))
-
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun unique-find-anywhere-if (predicate tree
+                                  &optional found-so-far)
+    "return a list of leaves of tree satisfying predicate,
+  with duplicates removed."
+    (if (atom tree)
+        (if (funcall predicate tree)
+            (adjoin tree found-so-far)
+            found-so-far)
+        (unique-find-anywhere-if
+         predicate
+         (first tree)
+         (unique-find-anywhere-if predicate (rest tree)
+                                  found-so-far))))
+  (defun variables-in (exp)
+    "Return a list of all the variables in EXP."
+    (unique-find-anywhere-if #'non-anon-variable-p exp))
+
+
+  (defun non-anon-variable-p (x)
+    (and (variable-p x) (not (eq x '?))))
   (defun replace-?-vars (exp)
     "Replace any ? within exp with a var of the form ?123."
     (cond ((eq exp '?) (gensym "?"))
@@ -628,7 +726,6 @@
 			 (replace-?-vars (rest exp))
 			 exp)))))
 
-
 ;;;; -*- Mode: Lisp; Syntax: Common-Lisp -*-
 ;;;; Code from Paradigms of AI Programming
 ;;;; Copyright (c) 1991 Peter Norvig
@@ -636,7 +733,7 @@
 ;;;; File prologc.lisp: Final version of the compiler,
 ;;;; including all improvements from the chapter.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 (defmacro set-binding! (trail var value)
@@ -650,6 +747,40 @@
            (setf (var-binding ,gvar) ,gval))
          t))))
 
+
+(defun set-var-binding (var val)
+  (setf (cdr var) val))
+
+(define-compiler-macro set-var-binding (var val)
+  `(setf (cdr ,var) ,val))
+
+#|(let ((a prolog::*anonymous-var*)
+      (trail (allocate-trail 1)))
+  (list (prolog::unify! trail a 'val)
+        (cdr a)
+        trail))|#
+
+#|(let ((a (cons var-tag unbound))
+      (trail (allocate-trail 1)))
+  (list (prolog::unify! trail a 'val)
+        (cdr a)
+        trail))|#
+
+
+#|(defun unify! (trail x y)
+  "Destructively unify two expressions"
+  (declare (list trail))
+  (cond ((eql (deref x) (deref y)) t)
+        ((var-p x) (if (eq x *anonymous-var*)
+                       (set-var-binding x y)
+                       (set-binding! trail x y)))
+        ((var-p y) (if (eq x *anonymous-var*)
+                       (set-var-binding y x)
+                       (set-binding! trail y x)))
+        ((and (consp x) (consp y))
+         (and (unify! trail (first x) (first y))
+              (unify! trail (rest x) (rest y))))
+        (t nil)))|#
 
 (defun unify! (trail x y)
   "Destructively unify two expressions"
@@ -1033,8 +1164,7 @@
         (deref-exp (first exp))
         (deref-exp (rest exp))
         exp)))
-
-
+ 
 (define-compiler-macro deref-exp (&whole w exp &environment env)
   (if (constantp exp env)
       `',exp
@@ -1199,7 +1329,7 @@
 ;;; Bug fix by Adam Farquhar, farquhar@cs.utexas.edu.
 ;;; Trivia: Farquhar is Norvig's cousin.
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -2108,7 +2238,7 @@
             ,(compile-body trail body cont bindings)))))
 
 
-(in-package "ALLEGRETTO-PROLOG-4")
+(in-package "ALLEGRO-MODERATO")
 
 
 (defun retract-same-arity-clause (clause)
@@ -2377,76 +2507,4 @@ and add a clause to the data base."
        ,@cleanup-forms)))
 
 
-(defmacro prolog (&rest goals)
-  "Run Prolog in the surrounding Lisp environment
-which is accessed from lisp functor.
-"
-  (let ((*predicate* 'prolog-clauses))
-    `(block prolog
-       (flet ((,*predicate* (trail cont)
-                (declare (ignorable trail cont))
-                ,(let* ((vars (variables-in goals)))
-                   `(let-de (,@(mapcar (lambda (v) `(,v (?))) vars))
-                      ,(compile-body* 'trail goals 'cont nil)))))
-         (declare (dynamic-extent #',*predicate*))
-         (let ((trail (fast *trail*)))
-           (if trail
-               (,*predicate* trail #'ignorer)
-               (let ((trail (allocate-trail default-trail-size)))
-                 (let ((*trail* trail))
-                   (,*predicate* trail #'ignorer)))))))))
-
-
-(defmacro prolog-collect ((&rest vars) &body body)
-  "collect all bindings of vars"
-  (when (null vars)
-    (error "must specify vars."))
-  (let ((result (gensym "result")))
-    `(let (,result)
-       (prolog
-        ,@body
-        ,@(when vars
-            `((lisp (push ,(if (length=1 vars)
-                               (car vars)
-                               `(list ,@vars))
-                          ,result)))))
-       ,result)))
-
-
-(defmacro prolog-first ((&rest vars) &body body)
-  "return first bindding of vars"
-  (when (null vars)
-    (error "must specify vars."))
-  `(prolog
-     ,@body
-     (lisp (return-from prolog ,(if (length=1 vars)
-                                    (car vars)
-                                    `(values ,@vars))))))
-
-
-(progn
-  ;;(<-- (member ?item (?item . ?rest)))
-  ;;(<-  (member ?item (?x . ?rest)) (member ?item ?rest))
-
-  ;;#++
-  (tail-recursive-defun member/2 (trail ?arg1 ?arg2 cont)
-    (let ((old-trail (trail-ndx trail)))
-      (let ((?rest (?)))
-        (if (unify! trail ?arg2 (cons ?arg1 ?rest))
-            (funcall cont)))
-      (undo-bindings! trail old-trail)
-      (let ((?rest (?)))
-        (if (unify! trail ?arg2 (cons (?) ?rest))
-            (member/2 trail ?arg1 ?rest cont))))))
-
-
-(progn
-  (<-- (length () 0))
-  (<-  (length (?x . ?y) ?n)
-       (length ?y ?n1)
-       (is ?n (1+ ?n1))))
-
-
 ;;; *EOF*
-
-

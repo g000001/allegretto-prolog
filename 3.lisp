@@ -206,8 +206,17 @@
     (name (incf *var-counter*) :type adim)
     (binding unbound)))
 
+(defun bound-p (var)
+  (not (or ;;(eq var (load-time-value *anonymous-var*))
+           (eq (var-binding var)
+               (load-time-value unbound)))))
 
-(defun bound-p (var) (not (eq (var-binding var) unbound)))
+(define-compiler-macro bound-p (var)
+  `(fast
+     (not (or ;; (eq ,var (load-time-value *anonymous-var*))
+              (eq (var-binding ,var)
+                  (load-time-value unbound))))))
+
 
 
 (defmacro deref (exp)
@@ -975,6 +984,11 @@
         exp)))
 
 
+(define-compiler-macro deref-exp (&whole w exp &environment env)
+  (if (constantp exp env)
+      `',exp
+      w))
+
 (defvar *predicate* nil
   "The Prolog predicate currently being compiled")
 
@@ -1235,6 +1249,11 @@
 (defun unbound-var-p (exp)
   "Is EXP an unbound var?"
   (and (var-p exp) (not (bound-p exp))))
+
+
+(define-compiler-macro unbound-var-p (exp)
+  "Is EXP an unbound var?"
+  `(and (var-p ,exp) (not (bound-p ,exp))))
 
 
 (defun nonvarp (exp)

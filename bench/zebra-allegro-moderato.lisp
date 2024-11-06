@@ -7,12 +7,13 @@
 (cl:in-package :cl-user)
 
 
-(defpackage :zebra-3 (:use :cl :allegretto-prolog-3))
+(defpackage :zebra-allegro-moderato (:use :cl :allegro-moderato))
 
 
-(in-package :zebra-3)
+(in-package :zebra-allegro-moderato)
 
 (defvar *zebra-result* "")
+
 
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
 
@@ -55,7 +56,6 @@
      (member (house ?w ? ? water ?) ?h) ;Q1
      (member (house ?z zebra ? ? ?) ?h) ;Q2
      )
-
 
 ;; This runs the query:
 
@@ -101,6 +101,24 @@
             (list (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second)))
                   zebra-owner water-drinker houses))
       (pprint *zebra-result*))))
+
+#|
+;; using allegro var
+("5,777,027-LIPS" JAPANESE NORWEGIAN
+ ((HOUSE NORWEGIAN FOX KOOLS WATER YELLOW)
+  (HOUSE UKRAINIAN HORSE CHESTERFIELD TEA BLUE)
+  (HOUSE ENGLISHMAN SNAILS WINSTON MILK RED)
+  (HOUSE SPANIARD DOG LUCKYSTRIKE OJ IVORY)
+  (HOUSE JAPANESE ZEBRA PARLIAMENTS COFFEE GREEN)))
+
+;; normal
+("3,198,254-LIPS" JAPANESE NORWEGIAN
+ ((HOUSE NORWEGIAN FOX KOOLS WATER YELLOW)
+  (HOUSE UKRAINIAN HORSE CHESTERFIELD TEA BLUE)
+  (HOUSE ENGLISHMAN SNAILS WINSTON MILK RED)
+  (HOUSE SPANIARD DOG LUCKYSTRIKE OJ IVORY)
+  (HOUSE JAPANESE ZEBRA PARLIAMENTS COFFEE GREEN)))
+|#
 
 
 ;; (zebra-benchmark 1000)

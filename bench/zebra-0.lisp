@@ -9,6 +9,8 @@
 
 (in-package :zebra-0)
 
+(defvar *zebra-result* "")
+
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
 
 (declaim (ftype function
@@ -33,7 +35,7 @@
      (member (house spaniard dog ? ? ?) ?h) ; 3
      (member (house ? ? ? coffee green) ?h) ; 4
      (member (house ukrainian ? ? tea ?) ?h) ; 5
-     (iright (house ? ? ? ? ivory)      ; 6
+          (iright (house ? ? ? ? ivory)      ; 6
              (house ? ? ? ? green) ?h)
      (member (house ? snails winston ? ?) ?h) ; 7
      (member (house ? ? kools ? yellow) ?h) ; 8
@@ -45,8 +47,11 @@
      (member (house japanese ? parliaments ? ?) ?h) ;14
      (nextto (house norwegian ? ? ? ?)  ;15
              (house ? ? ? ? blue) ?h)
+
+
      (member (house ?w ? ? water ?) ?h) ;Q1
      (member (house ?z zebra ? ? ?) ?h) ;Q2
+
      )
 
 ;; This runs the query:
@@ -89,11 +94,10 @@
                            water-drinker ?water-drinker
                            houses (copy-tree ?houses)))
                !)
-      (pprint (list 
-               (format nil
-                       "~:D-LIPS"
-                       (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
-               zebra-owner water-drinker houses)))))
+      (setq *zebra-result*
+            (list (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second)))
+                  zebra-owner water-drinker houses))
+      (pprint *zebra-result*))))
 
 #||
 

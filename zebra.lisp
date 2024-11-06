@@ -1,5 +1,7 @@
 (in-package "CL-USER")
 
+#+allegro (require "prolog")
+#+lispworks (ignore-errors (require "prolog"))
 
 (setf (logical-pathname-translations "ALLEGRETTO-PROLOG")
       `(("**;*.*.*"
@@ -28,6 +30,8 @@
 (defun run ()
   ;;#-lispworks (dribble "/tmp/log.lisp")
   #+allegro (load (compile-file "allegretto-prolog:allegro-prolog"))
+  #+allegro (load (compile-file "allegretto-prolog:allegro-moderato"))
+  #+allegro (load (compile-file "allegretto-prolog:allegro-moderato2"))
   (load (compile-file "allegretto-prolog:paiprolog"))
   (load (compile-file "allegretto-prolog:0"))
   (load (compile-file "allegretto-prolog:1"))
@@ -35,7 +39,11 @@
   (load (compile-file "allegretto-prolog:3"))
   (load (compile-file "allegretto-prolog:4"))
   (load (compile-file "allegretto-prolog:5"))
+  (load (compile-file "allegretto-prolog:6"))
   #+allegro (load (compile-file "allegretto-prolog:bench;zebra-allegro-prolog"))
+  #+allegro (load (compile-file "allegretto-prolog:bench;zebra-allegro-moderato"))
+  #+lispworks (and (ignore-errors (require "prolog"))
+                   (load (compile-file "allegretto-prolog:bench;zebra-clog")))
   (load (compile-file "allegretto-prolog:bench;zebra-paiprolog"))
   (load (compile-file "allegretto-prolog:bench;zebra-0"))
   (load (compile-file "allegretto-prolog:bench;zebra-1"))
@@ -43,7 +51,13 @@
   (load (compile-file "allegretto-prolog:bench;zebra-3"))
   (load (compile-file "allegretto-prolog:bench;zebra-4"))
   (load (compile-file "allegretto-prolog:bench;zebra-5"))
-
+  (load (compile-file "allegretto-prolog:bench;zebra-6"))
+  ;;
+  (bench-gc)
+  #+lispworks (and (ignore-errors (require "prolog"))
+                   (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-CLOG"))))
+  (bench-gc)
+  (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-6")))
   (bench-gc)
   (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-5")))
   (bench-gc)
@@ -59,13 +73,52 @@
   (bench-gc)
   (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-PAIPROLOG")) #+(or ecl clisp) 10)
   (bench-gc)
+  #+allegro (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRO-MODERATO")))
+  (bench-gc)
   #+allegro (funcall (print (find-symbol "ZEBRA-BENCHMARK" "ZEBRA-ALLEGRO-PROLOG")))
-  
-  
-  
-  
-  
-  
+
+  (let ((lisp-name (format nil "~A ~A" (lisp-implementation-type) (lisp-implementation-version)))
+        (result ""))
+    (setq result
+          (with-output-to-string (out)
+            (format out "~&~80@{;~}~%" T)
+            (format out "~&;; ~A~%" lisp-name)
+            (let ((pp-lips (car (eval (find-symbol "*ZEBRA-RESULT*" "ZEBRA-PAIPROLOG")))))
+              (mapc (lambda (res)
+                      (destructuring-bind (sym lips zebra-owner water-drinker houses) res
+                        (format out
+                                "~&;; ~25@A: ~13:DLIPS owner: ~A ~,2,,,FPP~%"
+                                (package-name (symbol-package sym))
+                                lips
+                                zebra-owner
+                                (/ lips pp-lips))))
+                    (sort
+                     (mapcar (lambda (sym)
+                               (cons sym (eval sym)))
+                             (remove nil
+                                     (list
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-6")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-5")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-4")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-3")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-2")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-1")
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-0")
+                                      #+lispworks (and (ignore-errors (require "prolog"))
+                                                       (find-symbol "*ZEBRA-RESULT*" "ZEBRA-CLOG"))
+                                      (find-symbol "*ZEBRA-RESULT*" "ZEBRA-PAIPROLOG")
+                                      #+allegro (find-symbol "*ZEBRA-RESULT*" "ZEBRA-ALLEGRO-MODERATO")
+                                      #+allegro (find-symbol "*ZEBRA-RESULT*" "ZEBRA-ALLEGRO-PROLOG")
+                                      )))
+                     #'>
+                     :key #'second)))
+            (format out "~&~80@{;~}~%" T)))
+    (with-open-file (outfile (format nil "/tmp/zebra-~A.txt" (sxhash lisp-name))
+                             :direction :output
+                             :if-does-not-exist :create
+                             :if-exists :supersede)
+      (write-string result outfile))
+    (format T "~&~A~%" result))
   
   ;;#-lispworks (dribble)
   (xit))
@@ -77,6 +130,9 @@
   ;; ccl64 -l zebra.lisp -e "(run)"
   ;; ecl --norc --load zebra.lisp --eval "(run)"
   ;; swi-prolog LIPS is 12852844 / 1.869.  LIPS = 6876856.072766185.
+  ;;swipl -l zebra.pl -g 'benchmark,halt.'
+  ;;% 12,877,724 inferences, 1.703 CPU in 1.729 seconds (98% CPU, 7,562,920 Lips)
+  
   )
 ;;; *EOF*
 
@@ -110,3 +166,4 @@ LispWorks
 
  
 ||#
+

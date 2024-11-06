@@ -1525,7 +1525,7 @@ which is accessed from lisp functor.
          (let ((trail (fast *trail*)))
            (if trail
                (,*predicate* trail #'ignorer)
-               (let ((trail (allocate-trail default-trail-size)))
+               (let ((trail (allocate-trail *default-trail-size*)))
                  (let ((*trail* trail))
                    (,*predicate* trail #'ignorer)))))))))
 

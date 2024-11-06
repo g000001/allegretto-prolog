@@ -12,7 +12,7 @@
 (defvar *trail* nil)
 
 
-(defconstant default-trail-size 512)
+(defvar *default-trail-size* 512)
 
 
 (defun allocate-trail-vec (size)

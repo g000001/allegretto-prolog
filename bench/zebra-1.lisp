@@ -6,6 +6,8 @@
 
 (in-package :zebra-1)
 
+(defvar *zebra-result* "")
+
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
 
 (declaim (ftype function
@@ -87,11 +89,10 @@
                            water-drinker ?water-drinker
                            houses (copy-tree ?houses)))
                !)
-      (pprint (list 
-               (format nil
-                       "~:D-LIPS"
-                       (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
-               zebra-owner water-drinker houses)))))
+      (setq *zebra-result*
+            (list (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second)))
+                  zebra-owner water-drinker houses))
+      (pprint *zebra-result*))))
 
 #||
 

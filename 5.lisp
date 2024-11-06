@@ -235,7 +235,17 @@
   (cdr var))
 
 
-(defun bound-p (var) (not (eq (var-binding var) unbound)))
+(defun bound-p (var)
+  (not (or ;;(eq var (load-time-value *anonymous-var*))
+           (eq (var-binding var)
+               (load-time-value unbound)))))
+
+
+(define-compiler-macro bound-p (var)
+  `(fast
+     (not (or ;; (eq ,var (load-time-value *anonymous-var*))
+              (eq (var-binding ,var)
+                  (load-time-value unbound))))))
 
 
 (defmacro deref (exp)

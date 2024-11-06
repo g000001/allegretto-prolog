@@ -168,34 +168,34 @@
 			   "Unbound"))
   (declaim (type fixnum *var-counter*))
   (defvar *var-counter* 0)
-
+  
 
   (defstruct (var (:constructor ? ())
                   (:print-function print-var))
     (name (incf *var-counter*) :type adim)
     (binding unbound))
-
-
-  )
-
-
-(defun bound-p (var) (not (eq (var-binding var) unbound)))
-
+  (defmethod make-load-form ((self var) &optional environment)
+    (make-load-form-saving-slots self
+                                 :slot-names '(name binding)
+                                 :environment environment))
   (defmacro deref (exp)
-    "Follow pointers for bound variables."
-    `(progn (loop while (and (var-p ,exp) (bound-p ,exp))
-                  do (setf ,exp (var-binding ,exp)))
-            ,exp))
-
-
+  "Follow pointers for bound variables."
+  `(progn (loop while (and (var-p ,exp) (bound-p ,exp))
+                do (setf ,exp (var-binding ,exp)))
+          ,exp))
   (defun print-var (var stream depth)
     (if (or (and *print-level*
                  (>= depth *print-level*))
             (var-p (deref var)))
         (format stream "?~A" (var-name var))
         (write var :stream stream)))
+  
   (unless (boundp 'null-var)
-    (defconstant null-var (?)))
+    (defconstant null-var (?))))
+
+
+(defun bound-p (var) (not (eq (var-binding var) unbound)))
+
 
 
 ;;;; TRAIL
@@ -1816,4 +1816,7 @@ which is accessed from lisp functor.
 (<-  (member ?item (?x . ?rest)) (member ?item ?rest))
 
 (<-- (length () 0))
-(<-  (length (?x . ?y) (1+ ?n)) (length ?y ?n))
+(<-  (length (?x . ?y) ?n)
+     (length ?y ?n1)
+     (is ?n (1+ ?n1)))
+

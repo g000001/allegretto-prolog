@@ -8,6 +8,10 @@
 
 (in-package :zebra-allegro-prolog)
 
+
+(defvar *zebra-result* "")
+
+
 #+allegro (eval-when (compile) (setf excl:*load-xref-info* nil))
 
 
@@ -16,6 +20,358 @@
 (<-- (iright ?left ?right (?left ?right . ?rest)))
 (<-  (iright ?left ?right (?x . ?rest))
      (iright ?left ?right ?rest))
+
+#|(DEFUN IRIGHT/3 (TRAIL CONT ?ARG1 ?ARG2 ?ARG3)
+  (DECLARE (IGNORABLE TRAIL CONT ?ARG1 ?ARG2 ?ARG3) #'CONT
+           (:EXPLAIN :TAILMERGING) (OPTIMIZE (SPEED 3) (SAFETY 0) (DEBUG 0)))
+  NIL
+  (BLOCK IRIGHT/3
+    (MACROLET ((CLAUSE-LOOP (&BODY BODY) (EXCL::BQ-CONS `LOOP BODY)))
+      (LET* ((TRAIL TRAIL) (OLD-NDX (EXCL::FAST (TRAIL-NDX TRAIL))))
+        (DECLARE (TYPE EXCL::ADIM OLD-NDX) (IGNORABLE OLD-NDX))
+        (WHEN T
+          (WHEN T
+            (WHEN-UNIFY!
+                (TRAIL ?ARG3 (DE-CONS ?ARG1 (DE-CONS ?ARG2 (?))))
+              (FUNCALL CONT))))
+        (UNDO-BINDINGS! TRAIL OLD-NDX)
+        (LET-DE ((?REST (?)))
+          (WHEN T
+            (WHEN T
+              (WHEN (LET ((X1 ?ARG3))
+                      (IF (CONSP X1)
+                          (IF (CONS-VAR-P X1)
+                              (UNIFY! TRAIL X1
+                                      (DE-CONS (?)
+                                               ?REST))
+                              (UNIFY! TRAIL (CDR X1)
+                                      ?REST))))
+                (DE-CONSIFY
+                 (MAKE-PREDICATE 'IRIGHT '3) TRAIL
+                 CONT ?ARG1 ?ARG2 ?REST)))))))))|#
+
+#|(DEFUN NEXTTO/3 (TRAIL CONT ?ARG1 ?ARG2 ?ARG3)
+  (DECLARE (IGNORABLE TRAIL CONT ?ARG1 ?ARG2 ?ARG3) #'CONT
+           (:EXPLAIN :TAILMERGING) (OPTIMIZE (SPEED 3) (SAFETY 0) (DEBUG 0)))
+  NIL
+  (BLOCK NEXTTO/3
+    (MACROLET ((CLAUSE-LOOP (&BODY BODY) (EXCL::BQ-CONS `LOOP BODY)))
+      (LET* ((TRAIL TRAIL) (OLD-NDX (EXCL::FAST (TRAIL-NDX TRAIL))))
+        (DECLARE (TYPE EXCL::ADIM OLD-NDX) (IGNORABLE OLD-NDX))
+        (WHEN T
+          (WHEN T
+            (WHEN T
+              (DE-CONSIFY
+               (MAKE-PREDICATE 'IRIGHT '3) TRAIL
+               CONT ?ARG1 ?ARG2 ?ARG3))))
+        (UNDO-BINDINGS! TRAIL OLD-NDX)
+        (WHEN T
+          (WHEN T
+            (WHEN T
+              (DE-CONSIFY
+               (MAKE-PREDICATE 'IRIGHT '3) TRAIL
+               CONT ?ARG2 ?ARG1 ?ARG3))))))))|#
+
+
+'(let ((*print-gensym* nil)
+      (*print-circle* nil))
+  (prolog-compile-symbols '(zebra) T))
+
+#|(DEFUN ZEBRA/3 (TRAIL CONT ?ARG1 ?ARG2 ?ARG3)
+  (DECLARE (IGNORABLE TRAIL CONT ?ARG1 ?ARG2 ?ARG3) #'CONT
+           (:EXPLAIN :TAILMERGING) (OPTIMIZE (SPEED 3) (SAFETY 0) (DEBUG 0)))
+  NIL
+  (BLOCK ZEBRA/3
+    (MACROLET ((CLAUSE-LOOP (&BODY BODY) (EXCL::BQ-CONS `LOOP BODY)))
+      (WHEN T
+        (WHEN T
+          (WHEN T
+            (WHEN-UNIFY!
+                (TRAIL ?ARG1
+                       (DE-LIST
+                        (DE-LIST 'HOUSE
+                                 'NORWEGIAN (?) (?) (?) (?))
+                        (?)
+                        (DE-LIST 'HOUSE (?) (?) (?)
+                                 'MILK (?))
+                        (?) (?)))
+              (LET ((DE-CONT
+                      #'(LAMBDA NIL
+                          (LET ((DE-CONT
+                                  #'(LAMBDA
+                                      NIL
+                                      (LET
+                                          ((DE-CONT
+                                             #'(LAMBDA
+                                                 NIL
+                                                 (LET
+                                                     ((DE-CONT
+                                                        #'(LAMBDA
+                                                            NIL
+                                                            (LET
+                                                                ((DE-CONT
+                                                                   #'(LAMBDA
+                                                                       NIL
+                                                                       (LET
+                                                                           ((DE-CONT
+                                                                              #'(LAMBDA
+                                                                                  NIL
+                                                                                  (LET
+                                                                                      ((DE-CONT
+                                                                                         #'(LAMBDA
+                                                                                             NIL
+                                                                                             (LET
+                                                                                                 ((DE-CONT
+                                                                                                    #'(LAMBDA
+                                                                                                        NIL
+                                                                                                        (LET
+                                                                                                            ((DE-CONT
+                                                                                                               #'(LAMBDA
+                                                                                                                   NIL
+                                                                                                                   (LET
+                                                                                                                       ((DE-CONT
+                                                                                                                          #'(LAMBDA
+                                                                                                                              NIL
+                                                                                                                              (LET
+                                                                                                                                  ((DE-CONT
+                                                                                                                                     #'(LAMBDA
+                                                                                                                                         NIL
+                                                                                                                                         (LET
+                                                                                                                                             ((DE-CONT
+                                                                                                                                                #'(LAMBDA
+                                                                                                                                                    NIL
+                                                                                                                                                    (LET
+                                                                                                                                                        ((DE-CONT
+                                                                                                                                                           #'(LAMBDA
+                                                                                                                                                               NIL
+                                                                                                                                                               (DE-CONSIFY
+                                                                                                                                                                (MAKE-PREDICATE
+                                                                                                                                                                 'MEMBER
+                                                                                                                                                                 '2)
+                                                                                                                                                                TRAIL
+                                                                                                                                                                CONT
+                                                                                                                                                                (DE-LIST
+                                                                                                                                                                 'HOUSE
+                                                                                                                                                                 ?ARG3
+                                                                                                                                                                 'ZEBRA
+                                                                                                                                                                 (?)
+                                                                                                                                                                 (?)
+                                                                                                                                                                 (?))
+                                                                                                                                                                ?ARG1))))
+                                                                                                                                                      (DECLARE
+                                                                                                                                                       (DYNAMIC-EXTENT
+                                                                                                                                                        DE-CONT))
+                                                                                                                                                      (DE-CONSIFY
+                                                                                                                                                       (MAKE-PREDICATE
+                                                                                                                                                        'MEMBER
+                                                                                                                                                        '2)
+                                                                                                                                                       TRAIL
+                                                                                                                                                       DE-CONT
+                                                                                                                                                       (DE-LIST
+                                                                                                                                                        'HOUSE
+                                                                                                                                                        ?ARG2
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        'WATER
+                                                                                                                                                        (?))
+                                                                                                                                                       ?ARG1)))))
+                                                                                                                                           (DECLARE (DYNAMIC-EXTENT DE-CONT))
+                                                                                                                                           (DE-CONSIFY (MAKE-PREDICATE 'NEXTTO '3)
+                                                                                                                                                       TRAIL
+                                                                                                                                                       DE-CONT
+                                                                                                                                                       (DE-LIST
+                                                                                                                                                        'HOUSE
+                                                                                                                                                        'NORWEGIAN
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        (?))
+                                                                                                                                                       (DE-LIST
+                                                                                                                                                        'HOUSE
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        (?)
+                                                                                                                                                        'BLUE)
+                                                                                                                                                       ?ARG1)))))
+                                                                                                                                (DECLARE (DYNAMIC-EXTENT DE-CONT))
+                                                                                                                                (DE-CONSIFY
+                                                                                                                                 (MAKE-PREDICATE
+                                                                                                                                  'MEMBER
+                                                                                                                                  '2)
+                                                                                                                                 TRAIL
+                                                                                                                                 DE-CONT
+                                                                                                                                 (DE-LIST
+                                                                                                                                  'HOUSE
+                                                                                                                                  'JAPANESE
+                                                                                                                                  (?)
+                                                                                                                                  'PARLIAMENTS
+                                                                                                                                  (?)
+                                                                                                                                  (?))
+                                                                                                                                 ?ARG1)))))
+                                                                                                                     (DECLARE
+                                                                                                                      (DYNAMIC-EXTENT
+                                                                                                                       DE-CONT))
+                                                                                                                     (DE-CONSIFY
+                                                                                                                      (MAKE-PREDICATE
+                                                                                                                       'MEMBER
+                                                                                                                       '2)
+                                                                                                                      TRAIL
+                                                                                                                      DE-CONT
+                                                                                                                      (DE-LIST
+                                                                                                                       'HOUSE
+                                                                                                                       (?)
+                                                                                                                       (?)
+                                                                                                                       'LUCKYSTRIKE
+                                                                                                                       'OJ
+                                                                                                                       (?))
+                                                                                                                      ?ARG1)))))
+                                                                                                          (DECLARE
+                                                                                                           (DYNAMIC-EXTENT
+                                                                                                            DE-CONT))
+                                                                                                          (DE-CONSIFY
+                                                                                                           (MAKE-PREDICATE
+                                                                                                            'NEXTTO
+                                                                                                            '3)
+                                                                                                           TRAIL
+                                                                                                           DE-CONT
+                                                                                                           (DE-LIST
+                                                                                                            'HOUSE
+                                                                                                            (?)
+                                                                                                            (?)
+                                                                                                            'KOOLS
+                                                                                                            (?)
+                                                                                                            (?))
+                                                                                                           (DE-LIST
+                                                                                                            'HOUSE
+                                                                                                            (?)
+                                                                                                            'HORSE
+                                                                                                            (?)
+                                                                                                            (?)
+                                                                                                            (?))
+                                                                                                           ?ARG1)))))
+                                                                                               (DECLARE
+                                                                                                (DYNAMIC-EXTENT
+                                                                                                 DE-CONT))
+                                                                                               (DE-CONSIFY
+                                                                                                (MAKE-PREDICATE
+                                                                                                 'NEXTTO
+                                                                                                 '3)
+                                                                                                TRAIL
+                                                                                                DE-CONT
+                                                                                                (DE-LIST
+                                                                                                 'HOUSE
+                                                                                                 (?)
+                                                                                                 (?)
+                                                                                                 'CHESTERFIELD
+                                                                                                 (?)
+                                                                                                 (?))
+                                                                                                (DE-LIST
+                                                                                                 'HOUSE
+                                                                                                 (?)
+                                                                                                 'FOX
+                                                                                                 (?)
+                                                                                                 (?)
+                                                                                                 (?))
+                                                                                                ?ARG1)))))
+                                                                                    (DECLARE
+                                                                                     (DYNAMIC-EXTENT
+                                                                                      DE-CONT))
+                                                                                    (DE-CONSIFY
+                                                                                     (MAKE-PREDICATE
+                                                                                      'MEMBER
+                                                                                      '2)
+                                                                                     TRAIL
+                                                                                     DE-CONT
+                                                                                     (DE-LIST
+                                                                                      'HOUSE
+                                                                                      (?)
+                                                                                      (?)
+                                                                                      'KOOLS
+                                                                                      (?)
+                                                                                      'YELLOW)
+                                                                                     ?ARG1)))))
+                                                                         (DECLARE
+                                                                          (DYNAMIC-EXTENT
+                                                                           DE-CONT))
+                                                                         (DE-CONSIFY
+                                                                          (MAKE-PREDICATE
+                                                                           'MEMBER
+                                                                           '2)
+                                                                          TRAIL
+                                                                          DE-CONT
+                                                                          (DE-LIST
+                                                                           'HOUSE
+                                                                           (?)
+                                                                           'SNAILS
+                                                                           'WINSTON
+                                                                           (?)
+                                                                           (?))
+                                                                          ?ARG1)))))
+                                                              (DECLARE
+                                                               (DYNAMIC-EXTENT
+                                                                DE-CONT))
+                                                              (DE-CONSIFY
+                                                               (MAKE-PREDICATE
+                                                                'IRIGHT
+                                                                '3)
+                                                               TRAIL
+                                                               DE-CONT
+                                                               (DE-LIST
+                                                                'HOUSE
+                                                                (?)
+                                                                (?)
+                                                                (?)
+                                                                (?)
+                                                                'IVORY)
+                                                               (DE-LIST
+                                                                'HOUSE
+                                                                (?)
+                                                                (?)
+                                                                (?)
+                                                                (?)
+                                                                'GREEN)
+                                                               ?ARG1)))))
+                                                   (DECLARE
+                                                    (DYNAMIC-EXTENT DE-CONT))
+                                                   (DE-CONSIFY
+                                                    (MAKE-PREDICATE 'MEMBER '2)
+                                                    TRAIL
+                                                    DE-CONT
+                                                    (DE-LIST
+                                                     'HOUSE
+                                                     'UKRAINIAN
+                                                     (?)
+                                                     (?)
+                                                     'TEA
+                                                     (?))
+                                                    ?ARG1)))))
+                                        (DECLARE (DYNAMIC-EXTENT DE-CONT))
+                                        (DE-CONSIFY
+                                         (MAKE-PREDICATE 'MEMBER '2)
+                                         TRAIL
+                                         DE-CONT
+                                         (DE-LIST
+                                          'HOUSE
+                                          (?)
+                                          (?)
+                                          (?)
+                                          'COFFEE
+                                          'GREEN)
+                                         ?ARG1)))))
+                            (DECLARE (DYNAMIC-EXTENT DE-CONT))
+                            (DE-CONSIFY (MAKE-PREDICATE 'MEMBER '2) TRAIL
+                                        DE-CONT
+                                        (DE-LIST 'HOUSE
+                                                 'SPANIARD
+                                                 'DOG (?) (?) (?))
+                                        ?ARG1)))))
+                (DECLARE (DYNAMIC-EXTENT DE-CONT))
+                (DE-CONSIFY (MAKE-PREDICATE 'MEMBER '2) TRAIL DE-CONT
+                            (DE-LIST 'HOUSE
+                                     'ENGLISHMAN (?) (?) (?)
+                                     'RED)
+                            ?ARG1)))))))))|#
 
 
 (<-- (zebra ?h ?w ?z)
@@ -85,11 +441,11 @@
                     water-drinker ?water-drinker
                     houses (copy-tree ?houses)))
         !)
-      (pprint (list (format nil
-                            "~:D-LIPS"
-                            (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second))))
-                    zebra-owner water-drinker houses)))))
+      (setq *zebra-result*
+            (list (floor (/ (* n 12825) (/ (- rt1 rt0) internal-time-units-per-second)))
+                  zebra-owner water-drinker houses))
+      (pprint *zebra-result*))))
 
+
+;; (zebra-benchmark 1000)
 ;;;  zebra.cl end
-
-
