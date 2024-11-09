@@ -1,6 +1,6 @@
 ;;; -*- mode: Lisp; coding: utf-8  -*-
 
-(cl:in-package "BCL-USER")
+(cl:in-package "CL-USER")
 
 
 (defpackage allegretto-prolog
